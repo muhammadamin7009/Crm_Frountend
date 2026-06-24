@@ -1,0 +1,52 @@
+import React from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import Login from "../Pages/Login/Login";
+import Register from "../Pages/Register/Register";
+import Layout from "../Layouts/Layout";
+import ProtectedRoute from "./ProtectedRoute";
+import PublicRoute from "./PublicRoute";
+import Dashboard from "../Pages/Dashboard/Dashboard";
+import Users from "../Pages/User/Users";
+import User from "../Pages/User/User";
+import Products from "../Pages/Product/Products";
+import Product from "../Pages/Product/Product";
+import WorkerOutputs from "../Pages/WorkerOutput/WorkerOutputs";
+import WorkerPayments from "../Pages/WorkerPayment/WorkerPayments";
+import ClientSales from "../Pages/ClientSale/ClientSales";
+
+const AppRouter = () => {
+  return (
+    <Routes>
+      <Route element={<PublicRoute />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Route>
+
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/products/:id" element={<Product />} />
+          <Route
+            element={
+              <ProtectedRoute allowedRoles={["super_admin", "admin", "worker"]} />
+            }
+          >
+            <Route path="/worker-outputs" element={<WorkerOutputs />} />
+          </Route>
+          <Route
+            element={<ProtectedRoute allowedRoles={["super_admin", "admin"]} />}
+          >
+            <Route path="/worker-payments" element={<WorkerPayments />} />
+            <Route path="/client-sales" element={<ClientSales />} />
+            <Route path="/users/:id" element={<User />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
+};
+
+export default AppRouter;

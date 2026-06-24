@@ -1,0 +1,885 @@
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import {
+  Avatar,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TablePagination,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { useAuth } from "../../Context/AuthContext";
+import { getUsers } from "../../api/getUsers";
+import {
+  createWorkerPayment,
+  deleteWorkerPayment,
+  getWorkerBalance,
+  getWorkerPayments,
+  getWorkerPaymentsSummary,
+  updateWorkerPayment,
+} from "../../api/workerPayments";
+
+const emptyForm = {
+  worker_id: "",
+  amount: "",
+  payment_type: "salary",
+  paid_at: new Date().toISOString().slice(0, 10),
+  period_from: "",
+  period_to: "",
+  note: "",
+};
+
+const paymentTypeLabels = {
+  salary: "Oylik",
+  advance: "Avans",
+  bonus: "Bonus",
+  other: "Boshqa",
+};
+
+const getLocalUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    return null;
+  }
+};
+
+const formatMoney = (value) => {
+  if (value === null || value === undefined || value === "") return "0 so'm";
+  return `${new Intl.NumberFormat("uz-UZ").format(Number(value || 0))} so'm`;
+};
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("uz-UZ");
+};
+
+const WorkerPayments = () => {
+  const auth = useAuth();
+  const currentUser = auth?.user || getLocalUser();
+  const canManage = ["super_admin", "admin"].includes(currentUser?.role);
+
+  const [payments, setPayments] = useState([]);
+  const [summary, setSummary] = useState([]);
+  const [balance, setBalance] = useState({
+    total_earned: 0,
+    total_paid: 0,
+    remaining: 0,
+  });
+  const [pageInfo, setPageInfo] = useState({ total: 0, offset: 0, limit: 10 });
+  const [totals, setTotals] = useState({ total_paid: 0 });
+  const [workers, setWorkers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const [filters, setFilters] = useState({
+    q: "",
+    worker_id: "",
+    payment_type: "",
+    date_from: "",
+    date_to: "",
+    sort_by: "paid_at",
+    sort_order: "desc",
+    group_by: "worker",
+  });
+
+  const [form, setForm] = useState(emptyForm);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [selectedWorkerBalance, setSelectedWorkerBalance] = useState({
+    total_earned: 0,
+    total_paid: 0,
+    remaining: 0,
+  });
+  const [balanceLoading, setBalanceLoading] = useState(false);
+
+  const page = Math.floor(pageInfo.offset / pageInfo.limit);
+
+  const fetchWorkers = useCallback(async () => {
+    try {
+      const { data } = await getUsers({
+        offset: 0,
+        limit: 100,
+        sort_by: "created_at",
+        sort_order: "desc",
+      });
+      setWorkers(
+        (data.users || data.list || []).filter(
+          (user) => user.role === "worker",
+        ),
+      );
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Ishchilarni olishda xato.",
+      );
+    }
+  }, []);
+
+  const buildParams = useCallback(
+    (offset = 0, limit = pageInfo.limit) => {
+      const params = {
+        offset,
+        limit,
+        sort_by: filters.sort_by,
+        sort_order: filters.sort_order,
+      };
+
+      for (const key of [
+        "q",
+        "worker_id",
+        "payment_type",
+        "date_from",
+        "date_to",
+      ]) {
+        if (filters[key] !== "") params[key] = filters[key];
+      }
+
+      return params;
+    },
+    [filters, pageInfo.limit],
+  );
+
+  const fetchPayments = useCallback(
+    async (offset = 0, limit = pageInfo.limit) => {
+      setLoading(true);
+
+      try {
+        const { data } = await getWorkerPayments(buildParams(offset, limit));
+        setPayments(data.worker_payments || []);
+        setTotals(data.totals || { total_paid: 0 });
+        setPageInfo(data.pageInfo || { total: 0, offset, limit });
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message || "To'lovlarni olishda xato.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [buildParams, pageInfo.limit],
+  );
+
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
+
+    try {
+      const params = buildParams(0, 100);
+      delete params.offset;
+      delete params.limit;
+      params.group_by = filters.group_by;
+
+      const [summaryRes, balanceRes] = await Promise.all([
+        getWorkerPaymentsSummary(params),
+        getWorkerBalance({
+          worker_id: filters.worker_id || undefined,
+          date_from: filters.date_from || undefined,
+          date_to: filters.date_to || undefined,
+        }),
+      ]);
+
+      setSummary(summaryRes.data.summary || []);
+      setBalance(
+        balanceRes.data.balance || {
+          total_earned: 0,
+          total_paid: 0,
+          remaining: 0,
+        },
+      );
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Oylik summary olishda xato.",
+      );
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [
+    buildParams,
+    filters.group_by,
+    filters.worker_id,
+    filters.date_from,
+    filters.date_to,
+  ]);
+
+  useEffect(() => {
+    fetchWorkers();
+  }, [fetchWorkers]);
+
+  useEffect(() => {
+    fetchPayments(0, pageInfo.limit);
+    fetchSummary();
+  }, [filters.sort_by, filters.sort_order, filters.group_by]);
+
+  const handleFilterChange = (field) => (event) => {
+    setFilters((previous) => ({ ...previous, [field]: event.target.value }));
+  };
+
+  const fetchSelectedWorkerBalance = useCallback(
+    async (
+      workerId,
+      periodFrom = form.period_from,
+      periodTo = form.period_to,
+    ) => {
+      if (!workerId) {
+        setSelectedWorkerBalance({
+          total_earned: 0,
+          total_paid: 0,
+          remaining: 0,
+        });
+        return;
+      }
+
+      setBalanceLoading(true);
+
+      try {
+        const { data } = await getWorkerBalance({
+          worker_id: workerId,
+          date_from: periodFrom || undefined,
+          date_to: periodTo || undefined,
+        });
+
+        setSelectedWorkerBalance(
+          data.balance || {
+            total_earned: 0,
+            total_paid: 0,
+            remaining: 0,
+          },
+        );
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message || "Ishchi balansini olishda xato.",
+        );
+      } finally {
+        setBalanceLoading(false);
+      }
+    },
+    [form.period_from, form.period_to],
+  );
+
+  const handleFormChange = (field) => (event) => {
+    const value = event.target.value;
+
+    setForm((previous) => ({ ...previous, [field]: value }));
+
+    if (field === "worker_id") {
+      fetchSelectedWorkerBalance(value);
+    }
+
+    if (field === "period_from") {
+      fetchSelectedWorkerBalance(form.worker_id, value, form.period_to);
+    }
+
+    if (field === "period_to") {
+      fetchSelectedWorkerBalance(form.worker_id, form.period_from, value);
+    }
+  };
+
+  const refreshPage = () => {
+    fetchPayments(pageInfo.offset, pageInfo.limit);
+    fetchSummary();
+  };
+
+  const applyFilters = () => {
+    fetchPayments(0, pageInfo.limit);
+    fetchSummary();
+  };
+
+  const openCreateModal = () => {
+    setSelectedPayment(null);
+    const nextForm = {
+      ...emptyForm,
+      period_from: filters.date_from || "",
+      period_to: filters.date_to || "",
+      worker_id: filters.worker_id || "",
+    };
+
+    setForm(nextForm);
+    setModalOpen(true);
+    fetchSelectedWorkerBalance(
+      nextForm.worker_id,
+      nextForm.period_from,
+      nextForm.period_to,
+    );
+  };
+
+  const openEditModal = (payment) => {
+    setSelectedPayment(payment);
+    const nextForm = {
+      worker_id: payment.worker_id || "",
+      amount: payment.amount ?? "",
+      payment_type: payment.payment_type || "salary",
+      paid_at: payment.paid_at
+        ? String(payment.paid_at).slice(0, 10)
+        : emptyForm.paid_at,
+      period_from: payment.period_from
+        ? String(payment.period_from).slice(0, 10)
+        : "",
+      period_to: payment.period_to
+        ? String(payment.period_to).slice(0, 10)
+        : "",
+      note: payment.note || "",
+    };
+
+    setForm(nextForm);
+    setModalOpen(true);
+    fetchSelectedWorkerBalance(
+      nextForm.worker_id,
+      nextForm.period_from,
+      nextForm.period_to,
+    );
+  };
+
+  const closeModals = () => {
+    setModalOpen(false);
+    setDeleteOpen(false);
+    setSelectedPayment(null);
+    setForm(emptyForm);
+    setSelectedWorkerBalance({
+      total_earned: 0,
+      total_paid: 0,
+      remaining: 0,
+    });
+  };
+
+  const validateForm = () => {
+    if (!form.worker_id) {
+      toast.error("Ishchini tanlang.");
+      return false;
+    }
+    if (!form.amount || Number(form.amount) <= 0) {
+      toast.error("Summani to'g'ri kiriting.");
+      return false;
+    }
+    if (
+      form.period_from &&
+      form.period_to &&
+      new Date(form.period_from) > new Date(form.period_to)
+    ) {
+      toast.error("Davr boshlanishi tugash sanasidan katta bo'lmasin.");
+      return false;
+    }
+    return true;
+  };
+
+  const buildPayload = () => ({
+    worker_id: Number(form.worker_id),
+    amount: Number(form.amount),
+    payment_type: form.payment_type,
+    paid_at: form.paid_at || undefined,
+    period_from: form.period_from || null,
+    period_to: form.period_to || null,
+    note: form.note.trim() || null,
+  });
+
+  const handleSave = async () => {
+    if (!validateForm()) return;
+    setSaving(true);
+
+    try {
+      if (selectedPayment) {
+        await updateWorkerPayment(selectedPayment.id, buildPayload());
+        toast.success("To'lov yangilandi.");
+      } else {
+        await createWorkerPayment(buildPayload());
+        toast.success("To'lov qo'shildi.");
+      }
+
+      closeModals();
+      refreshPage();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "To'lovni saqlashda xato.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedPayment) return;
+    setDeleting(true);
+
+    try {
+      await deleteWorkerPayment(selectedPayment.id);
+      toast.success("To'lov o'chirildi.");
+      closeModals();
+      refreshPage();
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "To'lovni o'chirishda xato.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Box className="flex h-full min-h-0 flex-col">
+      <Box className="mb-5 flex shrink-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <Box>
+          <Typography variant="h5" fontWeight={800} className="text-slate-950">
+            Oyliklar
+          </Typography>
+          <Typography variant="body2" className="mt-1 text-slate-500">
+            Ishchilarga berilgan oylik, avans va balans nazorati
+          </Typography>
+        </Box>
+
+        <Box className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Box className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <Typography variant="body2" className="text-slate-500">
+              Ishlab topgan
+            </Typography>
+            <Typography variant="h6" fontWeight={800}>
+              {formatMoney(balance.total_earned)}
+            </Typography>
+          </Box>
+          <Box className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <Typography variant="body2" className="text-slate-500">
+              Berilgan
+            </Typography>
+            <Typography variant="h6" fontWeight={800}>
+              {formatMoney(balance.total_paid)}
+            </Typography>
+          </Box>
+          <Box className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <Typography variant="body2" className="text-slate-500">
+              Qolgan
+            </Typography>
+            <Typography variant="h6" fontWeight={800}>
+              {formatMoney(balance.remaining)}
+            </Typography>
+          </Box>
+          <Box className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <Typography variant="body2" className="text-slate-500">
+              To'lovlar
+            </Typography>
+            <Typography variant="h6" fontWeight={800}>
+              {pageInfo.total}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      <Paper
+        elevation={0}
+        className="mb-4 shrink-0 rounded-2xl border border-slate-200 p-4"
+      >
+        <Box className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+            <TextField
+              size="small"
+              label="Qidirish"
+              value={filters.q}
+              onChange={handleFilterChange("q")}
+            />
+            <TextField
+              select
+              size="small"
+              label="Ishchi"
+              value={filters.worker_id}
+              onChange={handleFilterChange("worker_id")}
+            >
+              <MenuItem value="">Barchasi</MenuItem>
+              {workers.map((worker) => (
+                <MenuItem key={worker.id} value={worker.id}>
+                  {worker.first_name} {worker.last_name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="To'lov turi"
+              value={filters.payment_type}
+              onChange={handleFilterChange("payment_type")}
+            >
+              <MenuItem value="">Barchasi</MenuItem>
+              {Object.entries(paymentTypeLabels).map(([value, label]) => (
+                <MenuItem key={value} value={value}>
+                  {label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              size="small"
+              type="date"
+              label="Dan"
+              value={filters.date_from}
+              onChange={handleFilterChange("date_from")}
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                },
+              }}
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="Gacha"
+              value={filters.date_to}
+              onChange={handleFilterChange("date_to")}
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                },
+              }}
+            />
+            <TextField
+              select
+              size="small"
+              label="Summary"
+              value={filters.group_by}
+              onChange={handleFilterChange("group_by")}
+            >
+              <MenuItem value="worker">Ishchi</MenuItem>
+              <MenuItem value="payment_type">To'lov turi</MenuItem>
+              <MenuItem value="day">Kun</MenuItem>
+            </TextField>
+            <Button variant="outlined" onClick={applyFilters}>
+              Filterlash
+            </Button>
+          </Box>
+
+          {canManage && (
+            <Button
+              variant="contained"
+              onClick={openCreateModal}
+              sx={{ borderRadius: 2, width: "256px" }}
+            >
+              Oylik berish
+            </Button>
+          )}
+        </Box>
+      </Paper>
+
+      <Box className="mb-4 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-4">
+        {summaryLoading ? (
+          <Paper
+            elevation={0}
+            className="rounded-2xl border border-slate-200 p-4 md:col-span-4"
+          >
+            <CircularProgress size={24} />
+          </Paper>
+        ) : summary.length ? (
+          summary.slice(0, 4).map((item) => (
+            <Paper
+              key={String(item.group_id)}
+              elevation={0}
+              className="rounded-2xl border border-slate-200 p-4"
+            >
+              <Typography variant="body2" className="truncate text-slate-500">
+                {paymentTypeLabels[item.group_name] || item.group_name || "-"}
+              </Typography>
+              <Typography className="mt-1 text-slate-950" fontWeight={800}>
+                {formatMoney(item.total_paid)}
+              </Typography>
+              <Typography variant="body2" className="mt-1 text-slate-500">
+                {item.payments_count} to'lov
+              </Typography>
+            </Paper>
+          ))
+        ) : (
+          <Paper
+            elevation={0}
+            className="rounded-2xl border border-slate-200 p-4 md:col-span-4"
+          >
+            <Typography variant="body2" className="text-slate-500">
+              Summary uchun to'lov ma'lumoti topilmadi.
+            </Typography>
+          </Paper>
+        )}
+      </Box>
+
+      <Paper
+        elevation={0}
+        className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white"
+      >
+        <Box className="min-h-0 flex-1 overflow-auto">
+          <Table sx={{ minWidth: 1080 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Ishchi</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>To'lov turi</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Summa</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>To'lov sanasi</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Davr</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Izoh</TableCell>
+                {canManage && (
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>
+                    Amallar
+                  </TableCell>
+                )}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={canManage ? 7 : 6} align="center">
+                    <CircularProgress size={28} />
+                  </TableCell>
+                </TableRow>
+              ) : payments.length ? (
+                payments.map((payment) => (
+                  <TableRow key={payment.id} hover>
+                    <TableCell>
+                      <Box className="flex items-center gap-3">
+                        <Avatar
+                          sx={{ width: 40, height: 40, bgcolor: "#7F1D1D" }}
+                        >
+                          {payment.worker_name?.[0]?.toUpperCase() || "I"}
+                        </Avatar>
+                        <Box>
+                          <Typography fontWeight={700}>
+                            {payment.worker_name}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            className="text-slate-500"
+                          >
+                            @{payment.worker_username || "worker"}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={
+                          paymentTypeLabels[payment.payment_type] ||
+                          payment.payment_type
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography fontWeight={800}>
+                        {formatMoney(payment.amount)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{formatDate(payment.paid_at)}</TableCell>
+                    <TableCell>
+                      {formatDate(payment.period_from)} -{" "}
+                      {formatDate(payment.period_to)}
+                    </TableCell>
+                    <TableCell>{payment.note || "-"}</TableCell>
+                    {canManage && (
+                      <TableCell align="right">
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{ justifyContent: "flex-end" }}
+                        >
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => openEditModal(payment)}
+                          >
+                            O'zgartirish
+                          </Button>
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            onClick={() => {
+                              setSelectedPayment(payment);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            O'chirish
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={canManage ? 7 : 6} align="center">
+                    To'lovlar topilmadi
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Box>
+
+        <TablePagination
+          className="shrink-0 border-t border-slate-200"
+          component="div"
+          count={pageInfo.total}
+          page={page}
+          rowsPerPage={pageInfo.limit}
+          onPageChange={(_, nextPage) =>
+            fetchPayments(nextPage * pageInfo.limit, pageInfo.limit)
+          }
+          onRowsPerPageChange={(event) =>
+            fetchPayments(0, Number(event.target.value))
+          }
+          rowsPerPageOptions={[10, 20, 50]}
+        />
+      </Paper>
+
+      <Dialog open={modalOpen} onClose={closeModals} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          {selectedPayment ? "To'lovni tahrirlash" : "Oylik berish"}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} className="pt-2">
+            <TextField
+              select
+              required
+              label="Ishchi"
+              value={form.worker_id}
+              onChange={handleFormChange("worker_id")}
+            >
+              {workers.map((worker) => (
+                <MenuItem key={worker.id} value={worker.id}>
+                  {worker.first_name} {worker.last_name}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Box className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <Box className="mb-3 flex items-center justify-between gap-3">
+                <Typography fontWeight={800} className="text-slate-950">
+                  Tanlangan ishchi balansi
+                </Typography>
+                {balanceLoading && <CircularProgress size={18} />}
+              </Box>
+
+              <Box className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                  <Typography variant="body2" className="text-slate-500">
+                    Ishlab topgan
+                  </Typography>
+                  <Typography fontWeight={800}>
+                    {formatMoney(selectedWorkerBalance.total_earned)}
+                  </Typography>
+                </Box>
+                <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                  <Typography variant="body2" className="text-slate-500">
+                    Olgan
+                  </Typography>
+                  <Typography fontWeight={800}>
+                    {formatMoney(selectedWorkerBalance.total_paid)}
+                  </Typography>
+                </Box>
+                <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                  <Typography variant="body2" className="text-slate-500">
+                    Qolgan
+                  </Typography>
+                  <Typography fontWeight={800} className="text-slate-950">
+                    {formatMoney(selectedWorkerBalance.remaining)}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                required
+                type="number"
+                label="Summa"
+                value={form.amount}
+                onChange={handleFormChange("amount")}
+                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+              />
+              <TextField
+                select
+                label="To'lov turi"
+                value={form.payment_type}
+                onChange={handleFormChange("payment_type")}
+              >
+                {Object.entries(paymentTypeLabels).map(([value, label]) => (
+                  <MenuItem key={value} value={value}>
+                    {label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                type="date"
+                label="To'lov sanasi"
+                value={form.paid_at}
+                onChange={handleFormChange("paid_at")}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                type="date"
+                label="Davr boshidan"
+                value={form.period_from}
+                onChange={handleFormChange("period_from")}
+                slotProps={{
+                  inputLabel: {
+                    shrink: true,
+                  },
+                }}
+              />
+              <TextField
+                type="date"
+                label="Davr oxirigacha"
+                value={form.period_to}
+                onChange={handleFormChange("period_to")}
+                slotProps={{
+                  inputLabel: {
+                    shrink: true,
+                  },
+                }}
+              />
+            </Box>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Izoh"
+              value={form.note}
+              onChange={handleFormChange("note")}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeModals}>Bekor qilish</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? "Saqlanmoqda..." : "Saqlash"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onClose={closeModals} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 800 }}>To'lovni o'chirish</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {selectedPayment?.worker_name} uchun{" "}
+            {formatMoney(selectedPayment?.amount)} to'lovni o'chirmoqchimisiz?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeModals}>Bekor qilish</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? "O'chirilmoqda..." : "O'chirish"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default WorkerPayments;
