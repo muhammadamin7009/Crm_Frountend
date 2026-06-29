@@ -27,6 +27,11 @@ import {
   getClientSales,
   getClientSalesSummary,
 } from "../../api/clientSales";
+import {
+  getMaterialPurchases,
+  getSupplierBalance,
+} from "../../api/materialPurchases";
+import AdminOverview from "./AdminOverview";
 
 const getLocalUser = () => {
   try {
@@ -102,6 +107,7 @@ const WorkerDashboard = ({ user }) => {
     total_earned: 0,
     total_paid: 0,
     remaining: 0,
+    remaining_advance: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -183,7 +189,7 @@ const WorkerDashboard = ({ user }) => {
         </Typography>
       </Box>
 
-      <Box className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <Box className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-5">
         <StatCard
           label="Bugungi summa"
           value={formatMoney(todayTotals.total_amount)}
@@ -203,6 +209,11 @@ const WorkerDashboard = ({ user }) => {
           label="Qolgan"
           value={formatMoney(balance.remaining)}
           helper="Hali berilmagan summa"
+        />
+        <StatCard
+          label="Avans qarzi"
+          value={formatMoney(balance.remaining_advance)}
+          helper="Hali oylikdan ushlanmagan"
         />
       </Box>
 
@@ -287,6 +298,7 @@ const WorkerDashboard = ({ user }) => {
 
 const AdminDashboard = ({ user }) => {
   const [viewMode, setViewMode] = useState("internal");
+  const [externalMode, setExternalMode] = useState("sales");
   const [stats, setStats] = useState({
     users: 0,
     products: 0,
@@ -303,10 +315,13 @@ const AdminDashboard = ({ user }) => {
   const [departmentSummary, setDepartmentSummary] = useState([]);
   const [clientSummary, setClientSummary] = useState([]);
   const [productSalesSummary, setProductSalesSummary] = useState([]);
+  const [purchaseStats, setPurchaseStats] = useState({ totalPurchase: 0, totalPaid: 0, debtAmount: 0, purchasesCount: 0 });
+  const [recentPurchases, setRecentPurchases] = useState([]);
   const [paymentBalance, setPaymentBalance] = useState({
     total_earned: 0,
     total_paid: 0,
     remaining: 0,
+    remaining_advance: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -326,6 +341,9 @@ const AdminDashboard = ({ user }) => {
         clientSummaryRes,
         productSalesRes,
         clientBalanceRes,
+        purchasesRes,
+        supplierBalanceRes,
+        supplierDebtRes,
       ] = await Promise.all([
         getUsers({ offset: 0, limit: 1 }),
         getProducts({ offset: 0, limit: 1 }),
@@ -337,6 +355,9 @@ const AdminDashboard = ({ user }) => {
         getClientSalesSummary({ ...monthRange, group_by: "client" }),
         getClientSalesSummary({ ...monthRange, group_by: "product" }),
         getClientBalance(monthRange),
+        getMaterialPurchases({ ...monthRange, offset: 0, limit: 6 }),
+        getSupplierBalance(monthRange),
+        getSupplierBalance({}),
       ]);
 
       setStats({
@@ -371,6 +392,13 @@ const AdminDashboard = ({ user }) => {
       });
       setClientSummary(clientSummaryRes.data.summary || []);
       setProductSalesSummary(productSalesRes.data.summary || []);
+      setPurchaseStats({
+        totalPurchase: supplierBalanceRes.data.total_purchase || 0,
+        totalPaid: supplierBalanceRes.data.total_paid || 0,
+        debtAmount: supplierDebtRes.data.debt_amount || 0,
+        purchasesCount: purchasesRes.data.pageInfo?.total || 0,
+      });
+      setRecentPurchases(purchasesRes.data.material_purchases || []);
     } catch (error) {
       toast.error(
         error?.response?.data?.message ||
@@ -456,6 +484,11 @@ const AdminDashboard = ({ user }) => {
               label="Qolgan"
               value={formatMoney(paymentBalance.remaining)}
               helper="To'lanmagan qoldiq"
+            />
+            <StatCard
+              label="Olinmagan avans"
+              value={formatMoney(paymentBalance.remaining_advance)}
+              helper="Ishchilardan qolgan avans"
             />
           </Box>
 
@@ -545,6 +578,16 @@ const AdminDashboard = ({ user }) => {
         </>
       ) : (
         <>
+          <Box className="mb-5 flex w-fit rounded-2xl border border-slate-200 bg-white p-1">
+            <Button variant={externalMode === "sales" ? "contained" : "text"} onClick={() => setExternalMode("sales")} sx={{ borderRadius: 2, px: 3 }}>
+              Savdo
+            </Button>
+            <Button variant={externalMode === "purchases" ? "contained" : "text"} onClick={() => setExternalMode("purchases")} sx={{ borderRadius: 2, px: 3 }}>
+              Xarid
+            </Button>
+          </Box>
+
+          <Box className={externalMode === "sales" ? "" : "hidden"}>
           <Box className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
             <StatCard
               label="Savdo summasi"
@@ -651,6 +694,37 @@ const AdminDashboard = ({ user }) => {
               )}
             </Paper>
           </Box>
+          </Box>
+
+          {externalMode === "purchases" && (
+            <>
+              <Box className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+                <StatCard label="Homashyo xaridi" value={formatMoney(purchaseStats.totalPurchase)} helper="Bu oy kelgan homashyolar" />
+                <StatCard label="Ta'minotchiga berildi" value={formatMoney(purchaseStats.totalPaid)} helper="Bu oy chiqim qilingan" />
+                <StatCard label="Supplier qarzi" value={formatMoney(purchaseStats.debtAmount)} helper="Hali berilmagan summa" />
+                <StatCard label="Xarid yozuvlari" value={purchaseStats.purchasesCount} helper="Bu oygi kirimlar" />
+              </Box>
+
+              <Paper elevation={0} className="rounded-2xl border border-slate-200 bg-white p-5">
+                <Typography fontWeight={800} className="mb-3 text-slate-950">Oxirgi homashyo xaridlari</Typography>
+                {recentPurchases.length ? (
+                  <Table size="small">
+                    <TableHead><TableRow><TableCell>Ta'minotchi</TableCell><TableCell>Homashyolar</TableCell><TableCell>Jami</TableCell><TableCell>Berildi</TableCell><TableCell>Qarz</TableCell><TableCell>Sana</TableCell></TableRow></TableHead>
+                    <TableBody>{recentPurchases.map((purchase) => (
+                      <TableRow key={purchase.id}>
+                        <TableCell><Typography fontWeight={700}>{purchase.supplier_name}</Typography></TableCell>
+                        <TableCell>{purchase.items?.map((item) => item.material_name).join(", ") || "-"}</TableCell>
+                        <TableCell>{formatMoney(purchase.subtotal)}</TableCell>
+                        <TableCell>{formatMoney(purchase.paid_amount)}</TableCell>
+                        <TableCell>{formatMoney(purchase.debt_amount)}</TableCell>
+                        <TableCell>{formatDate(purchase.purchased_at)}</TableCell>
+                      </TableRow>
+                    ))}</TableBody>
+                  </Table>
+                ) : <EmptyState text="Bu oy homashyo xaridi hali kiritilmagan." />}
+              </Paper>
+            </>
+          )}
         </>
       )}
     </Box>
@@ -710,7 +784,7 @@ const Dashboard = () => {
   }
 
   if (["super_admin", "admin"].includes(user?.role)) {
-    return <AdminDashboard user={user} />;
+    return <AdminOverview user={user} />;
   }
 
   return <BusinessDashboard user={user} />;

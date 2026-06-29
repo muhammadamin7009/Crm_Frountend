@@ -13,40 +13,52 @@ import { useAuth } from "../../Context/AuthContext";
 import SiteLogo from "../../images/zerr_02_logo.png";
 import { clearSession } from "../../utils/auth";
 
-const menuItems = [
+const menuGroups = [
   {
-    label: "Dashboard",
-    helper: "Umumiy ko'rinish",
-    path: "/",
-    end: true,
+    label: "Asosiy",
+    items: [{ label: "Dashboard", path: "/", end: true }],
   },
   {
-    label: "Hodimlar",
-    helper: "Jamoa va rollar",
-    path: "/users",
+    label: "Boshqaruv",
+    items: [
+      { label: "Hodimlar", path: "/users" },
+      {
+        label: "Lavozim va kelishuvlar",
+        path: "/employees",
+        allowedRoles: ["super_admin", "admin"],
+      },
+      { label: "Mahsulotlar", path: "/products" },
+    ],
   },
   {
-    label: "Mahsulotlar",
-    helper: "Katalog va narxlar",
-    path: "/products",
+    label: "Ishlab chiqarish",
+    items: [
+      {
+        label: "Ish hisoboti",
+        path: "/worker-outputs",
+        allowedRoles: ["super_admin", "admin", "worker"],
+      },
+      {
+        label: "Oyliklar",
+        path: "/worker-payments",
+        allowedRoles: ["super_admin", "admin"],
+      },
+    ],
   },
   {
-    label: "Ish hisoboti",
-    helper: "Ishchilar ishlari",
-    path: "/worker-outputs",
-    allowedRoles: ["super_admin", "admin", "worker"],
-  },
-  {
-    label: "Oyliklar",
-    helper: "To'lov va balans",
-    path: "/worker-payments",
-    allowedRoles: ["super_admin", "admin"],
-  },
-  {
-    label: "Mijoz savdo",
-    helper: "Client qarzdorlik",
-    path: "/client-sales",
-    allowedRoles: ["super_admin", "admin"],
+    label: "Tashqi hisob",
+    items: [
+      {
+        label: "Mijoz savdo",
+        path: "/client-sales",
+        allowedRoles: ["super_admin", "admin"],
+      },
+      {
+        label: "Homashyo xaridi",
+        path: "/material-purchases",
+        allowedRoles: ["super_admin", "admin"],
+      },
+    ],
   },
 ];
 
@@ -79,8 +91,8 @@ const Sidebar = () => {
   const fullName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim();
 
   return (
-    <Box className="hidden h-screen w-72 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white md:flex">
-      <Box className="px-5 pb-5 pt-6">
+    <Box className="hidden h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white md:flex">
+      <Box className="px-5 pb-4 pt-5">
         <Box className="flex items-center gap-3">
           <Box className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
             <img width={34} src={SiteLogo} alt="Zerr Shoes" />
@@ -100,32 +112,41 @@ const Sidebar = () => {
         </Box>
       </Box>
 
-      <List className="mx-4 min-h-0 flex-1 px-0 py-2">
-        {menuItems
-          .filter(
-            (item) =>
-              !item.allowedRoles || item.allowedRoles.includes(user?.role),
-          )
-          .map((item) => (
+      <Box className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+        {menuGroups.map((group) => {
+          const visibleItems = group.items.filter(
+            (item) => !item.allowedRoles || item.allowedRoles.includes(user?.role),
+          );
+
+          if (!visibleItems.length) return null;
+
+          return (
+            <Box key={group.label} className="mb-4">
+              <Typography
+                variant="caption"
+                className="mb-1.5 block px-2 font-semibold uppercase text-slate-400"
+                sx={{ letterSpacing: 0 }}
+              >
+                {group.label}
+              </Typography>
+              <List disablePadding>
+                {visibleItems.map((item) => (
             <ListItemButton
               key={item.path}
               component={NavLink}
               to={item.path}
               end={item.end}
-              className="mb-2"
+              className="mb-1"
               sx={{
                 mx: 0,
-                px: 2,
-                py: 1.35,
+                px: 1.5,
+                py: 1,
                 color: "#475569",
                 border: "1px solid transparent",
-                borderRadius: "14px",
+                borderRadius: "10px",
                 "& .MuiListItemText-primary": {
                   fontWeight: 700,
                   color: "inherit",
-                },
-                "& .MuiListItemText-secondary": {
-                  color: "#94A3B8",
                 },
                 "&:hover": {
                   backgroundColor: "#FFF7ED",
@@ -138,15 +159,16 @@ const Sidebar = () => {
                   color: "#FFFFFF",
                   boxShadow: "0 12px 26px rgba(127, 29, 29, 0.18)",
                 },
-                "&.active .MuiListItemText-secondary": {
-                  color: "rgba(255,255,255,0.72)",
-                },
               }}
             >
-              <ListItemText primary={item.label} secondary={item.helper} />
+              <ListItemText primary={item.label} />
             </ListItemButton>
-          ))}
-      </List>
+                ))}
+              </List>
+            </Box>
+          );
+        })}
+      </Box>
 
       <Box className="px-4 pb-4">
         <Divider />

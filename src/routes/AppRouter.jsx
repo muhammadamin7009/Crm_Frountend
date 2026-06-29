@@ -13,6 +13,8 @@ import Product from "../Pages/Product/Product";
 import WorkerOutputs from "../Pages/WorkerOutput/WorkerOutputs";
 import WorkerPayments from "../Pages/WorkerPayment/WorkerPayments";
 import ClientSales from "../Pages/ClientSale/ClientSales";
+import MaterialPurchases from "../Pages/MaterialPurchase/MaterialPurchases";
+import Employees from "../Pages/Employee/Employees";
 
 const AppRouter = () => {
   return (
@@ -40,6 +42,8 @@ const AppRouter = () => {
           >
             <Route path="/worker-payments" element={<WorkerPayments />} />
             <Route path="/client-sales" element={<ClientSales />} />
+            <Route path="/material-purchases" element={<MaterialPurchases />} />
+            <Route path="/employees" element={<Employees />} />
             <Route path="/users/:id" element={<User />} />
           </Route>
         </Route>

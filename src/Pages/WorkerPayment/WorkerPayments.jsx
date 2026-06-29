@@ -32,10 +32,16 @@ import {
   getWorkerPaymentsSummary,
   updateWorkerPayment,
 } from "../../api/workerPayments";
+import {
+  createWorkerAdvance,
+  getWorkerAdvances,
+  getWorkerAdvanceBalance,
+} from "../../api/workerAdvances";
 
 const emptyForm = {
   worker_id: "",
   amount: "",
+  advance_deduction: "",
   payment_type: "salary",
   paid_at: new Date().toISOString().slice(0, 10),
   period_from: "",
@@ -43,9 +49,15 @@ const emptyForm = {
   note: "",
 };
 
+const emptyAdvanceForm = {
+  worker_id: "",
+  amount: "",
+  given_at: new Date().toISOString().slice(0, 10),
+  note: "",
+};
+
 const paymentTypeLabels = {
   salary: "Oylik",
-  advance: "Avans",
   bonus: "Bonus",
   other: "Boshqa",
 };
@@ -101,12 +113,21 @@ const WorkerPayments = () => {
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [advancesOpen, setAdvancesOpen] = useState(false);
+  const [advances, setAdvances] = useState([]);
+  const [advancesLoading, setAdvancesLoading] = useState(false);
+  const [advanceForm, setAdvanceForm] = useState(emptyAdvanceForm);
+  const [advanceSaving, setAdvanceSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [selectedWorkerBalance, setSelectedWorkerBalance] = useState({
     total_earned: 0,
     total_paid: 0,
     remaining: 0,
+    total_advance: 0,
+    advance_deducted: 0,
+    remaining_advance: 0,
   });
   const [balanceLoading, setBalanceLoading] = useState(false);
 
@@ -248,17 +269,23 @@ const WorkerPayments = () => {
       setBalanceLoading(true);
 
       try {
-        const { data } = await getWorkerBalance({
+      const [{ data }, advanceRes] = await Promise.all([
+        getWorkerBalance({
           worker_id: workerId,
           date_from: periodFrom || undefined,
           date_to: periodTo || undefined,
-        });
+        }),
+        getWorkerAdvanceBalance({ worker_id: workerId }),
+      ]);
 
         setSelectedWorkerBalance(
-          data.balance || {
+          {
+            ...(data.balance || {
             total_earned: 0,
             total_paid: 0,
             remaining: 0,
+            }),
+            ...(advanceRes.data.balance || {}),
           },
         );
       } catch (error) {
@@ -323,6 +350,7 @@ const WorkerPayments = () => {
     const nextForm = {
       worker_id: payment.worker_id || "",
       amount: payment.amount ?? "",
+      advance_deduction: payment.advance_deduction ?? "",
       payment_type: payment.payment_type || "salary",
       paid_at: payment.paid_at
         ? String(payment.paid_at).slice(0, 10)
@@ -348,8 +376,10 @@ const WorkerPayments = () => {
   const closeModals = () => {
     setModalOpen(false);
     setDeleteOpen(false);
+    setAdvanceOpen(false);
     setSelectedPayment(null);
     setForm(emptyForm);
+    setAdvanceForm(emptyAdvanceForm);
     setSelectedWorkerBalance({
       total_earned: 0,
       total_paid: 0,
@@ -363,7 +393,13 @@ const WorkerPayments = () => {
       return false;
     }
     if (!form.amount || Number(form.amount) <= 0) {
-      toast.error("Summani to'g'ri kiriting.");
+      if (Number(form.advance_deduction || 0) <= 0) {
+        toast.error("Naqd summa yoki avans ushlanmasini kiriting.");
+        return false;
+      }
+    }
+    if (Number(form.advance_deduction || 0) > Number(selectedWorkerBalance.remaining_advance || 0)) {
+      toast.error("Avans ushlanmasi qolgan avansdan oshmasin.");
       return false;
     }
     if (
@@ -380,6 +416,7 @@ const WorkerPayments = () => {
   const buildPayload = () => ({
     worker_id: Number(form.worker_id),
     amount: Number(form.amount),
+    advance_deduction: Number(form.advance_deduction || 0),
     payment_type: form.payment_type,
     paid_at: form.paid_at || undefined,
     period_from: form.period_from || null,
@@ -427,6 +464,48 @@ const WorkerPayments = () => {
     }
   };
 
+  const handleSaveAdvance = async () => {
+    if (!advanceForm.worker_id || Number(advanceForm.amount) <= 0) {
+      toast.error("Ishchi va avans summasini kiriting.");
+      return;
+    }
+    setAdvanceSaving(true);
+    try {
+      await createWorkerAdvance({
+        worker_id: Number(advanceForm.worker_id),
+        amount: Number(advanceForm.amount),
+        given_at: advanceForm.given_at,
+        note: advanceForm.note.trim() || null,
+      });
+      toast.success("Avans berildi.");
+      closeModals();
+      refreshPage();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Avansni saqlashda xato.");
+    } finally {
+      setAdvanceSaving(false);
+    }
+  };
+
+  const openAdvancesHistory = async () => {
+    setAdvancesOpen(true);
+    setAdvancesLoading(true);
+    try {
+      const { data } = await getWorkerAdvances({
+        worker_id: filters.worker_id || undefined,
+        offset: 0,
+        limit: 100,
+        sort_by: "given_at",
+        sort_order: "desc",
+      });
+      setAdvances(data.worker_advances || []);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Avanslarni olishda xato.");
+    } finally {
+      setAdvancesLoading(false);
+    }
+  };
+
   return (
     <Box className="flex h-full min-h-0 flex-col">
       <Box className="mb-5 flex shrink-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -439,7 +518,7 @@ const WorkerPayments = () => {
           </Typography>
         </Box>
 
-        <Box className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Box className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Box className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
             <Typography variant="body2" className="text-slate-500">
               Ishlab topgan
@@ -470,6 +549,14 @@ const WorkerPayments = () => {
             </Typography>
             <Typography variant="h6" fontWeight={800}>
               {pageInfo.total}
+            </Typography>
+          </Box>
+          <Box className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <Typography variant="body2" className="text-slate-500">
+              Olinmagan avans
+            </Typography>
+            <Typography variant="h6" fontWeight={800}>
+              {formatMoney(balance.remaining_advance)}
             </Typography>
           </Box>
         </Box>
@@ -556,13 +643,27 @@ const WorkerPayments = () => {
           </Box>
 
           {canManage && (
-            <Button
-              variant="contained"
-              onClick={openCreateModal}
-              sx={{ borderRadius: 2, width: "256px" }}
-            >
-              Oylik berish
-            </Button>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <Button variant="outlined" onClick={openAdvancesHistory}>
+                Avanslar
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setAdvanceForm({ ...emptyAdvanceForm, worker_id: filters.worker_id || "" });
+                  setAdvanceOpen(true);
+                }}
+              >
+                Avans berish
+              </Button>
+              <Button
+                variant="contained"
+                onClick={openCreateModal}
+                sx={{ borderRadius: 2, minWidth: "180px" }}
+              >
+                Oylik berish
+              </Button>
+            </Stack>
           )}
         </Box>
       </Paper>
@@ -669,6 +770,11 @@ const WorkerPayments = () => {
                       <Typography fontWeight={800}>
                         {formatMoney(payment.amount)}
                       </Typography>
+                      {Number(payment.advance_deduction || 0) > 0 && (
+                        <Typography variant="body2" className="text-slate-500">
+                          Avansdan: {formatMoney(payment.advance_deduction)}
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>{formatDate(payment.paid_at)}</TableCell>
                     <TableCell>
@@ -761,7 +867,7 @@ const WorkerPayments = () => {
                 {balanceLoading && <CircularProgress size={18} />}
               </Box>
 
-              <Box className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Box className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                 <Box className="rounded-xl border border-slate-200 bg-white p-3">
                   <Typography variant="body2" className="text-slate-500">
                     Ishlab topgan
@@ -786,6 +892,14 @@ const WorkerPayments = () => {
                     {formatMoney(selectedWorkerBalance.remaining)}
                   </Typography>
                 </Box>
+                <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                  <Typography variant="body2" className="text-slate-500">
+                    Qolgan avans
+                  </Typography>
+                  <Typography fontWeight={800}>
+                    {formatMoney(selectedWorkerBalance.remaining_advance)}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
 
@@ -793,9 +907,17 @@ const WorkerPayments = () => {
               <TextField
                 required
                 type="number"
-                label="Summa"
+                label="Naqd beriladi"
                 value={form.amount}
                 onChange={handleFormChange("amount")}
+                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+              />
+              <TextField
+                type="number"
+                label="Avansdan ushlash"
+                value={form.advance_deduction}
+                onChange={handleFormChange("advance_deduction")}
+                helperText={`Maksimum: ${formatMoney(selectedWorkerBalance.remaining_advance)}`}
                 slotProps={{ htmlInput: { min: 0, step: 1000 } }}
               />
               <TextField
@@ -840,6 +962,20 @@ const WorkerPayments = () => {
                 }}
               />
             </Box>
+            <Box className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+              <Box>
+                <Typography variant="body2" className="text-slate-500">Oylikdan yopiladi</Typography>
+                <Typography fontWeight={800}>{formatMoney(Number(form.amount || 0) + Number(form.advance_deduction || 0))}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" className="text-slate-500">Naqd beriladi</Typography>
+                <Typography fontWeight={800}>{formatMoney(form.amount)}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" className="text-slate-500">Qoladigan avans</Typography>
+                <Typography fontWeight={800}>{formatMoney(Math.max(Number(selectedWorkerBalance.remaining_advance || 0) - Number(form.advance_deduction || 0), 0))}</Typography>
+              </Box>
+            </Box>
             <TextField
               fullWidth
               multiline
@@ -854,6 +990,94 @@ const WorkerPayments = () => {
           <Button onClick={closeModals}>Bekor qilish</Button>
           <Button variant="contained" onClick={handleSave} disabled={saving}>
             {saving ? "Saqlanmoqda..." : "Saqlash"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={advancesOpen} onClose={() => setAdvancesOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ fontWeight: 800 }}>Avanslar tarixi</DialogTitle>
+        <DialogContent dividers>
+          {advancesLoading ? (
+            <Box className="flex min-h-32 items-center justify-center">
+              <CircularProgress size={28} />
+            </Box>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>Ishchi</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Avans</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Sana</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Izoh</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {advances.length ? advances.map((advance) => (
+                  <TableRow key={advance.id}>
+                    <TableCell>{advance.worker_name}</TableCell>
+                    <TableCell><Typography fontWeight={800}>{formatMoney(advance.amount)}</Typography></TableCell>
+                    <TableCell>{formatDate(advance.given_at)}</TableCell>
+                    <TableCell>{advance.note || "-"}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow><TableCell colSpan={4} align="center">Avans yozuvlari topilmadi</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAdvancesOpen(false)}>Yopish</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={advanceOpen} onClose={closeModals} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 800 }}>Ishchiga avans berish</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} className="pt-2">
+            <TextField
+              select
+              required
+              label="Ishchi"
+              value={advanceForm.worker_id}
+              onChange={(event) => setAdvanceForm((previous) => ({ ...previous, worker_id: event.target.value }))}
+            >
+              {workers.map((worker) => (
+                <MenuItem key={worker.id} value={worker.id}>
+                  {worker.first_name} {worker.last_name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                required
+                type="number"
+                label="Avans summasi"
+                value={advanceForm.amount}
+                onChange={(event) => setAdvanceForm((previous) => ({ ...previous, amount: event.target.value }))}
+                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+              />
+              <TextField
+                type="date"
+                label="Berilgan sana"
+                value={advanceForm.given_at}
+                onChange={(event) => setAdvanceForm((previous) => ({ ...previous, given_at: event.target.value }))}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Box>
+            <TextField
+              multiline
+              minRows={3}
+              label="Izoh"
+              value={advanceForm.note}
+              onChange={(event) => setAdvanceForm((previous) => ({ ...previous, note: event.target.value }))}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeModals}>Bekor qilish</Button>
+          <Button variant="contained" onClick={handleSaveAdvance} disabled={advanceSaving}>
+            {advanceSaving ? "Saqlanmoqda..." : "Avans berish"}
           </Button>
         </DialogActions>
       </Dialog>

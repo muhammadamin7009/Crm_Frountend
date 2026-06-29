@@ -1056,13 +1056,13 @@ const ClientSales = () => {
 
             <TextField
               select
+              required
               label="Qaysi savdodan"
               value={paymentForm.client_sale_id}
               onChange={handlePaymentChange("client_sale_id")}
               disabled={Boolean(selectedSale)}
-              helperText="Bo'sh qoldirilsa clientning umumiy qarziga kirim bo'ladi"
+              helperText="Savdoni tanlash majburiy"
             >
-              <MenuItem value="">Umumiy qarz</MenuItem>
               {sales
                 .filter(
                   (sale) =>
