@@ -15,10 +15,15 @@ import WorkerPayments from "../Pages/WorkerPayment/WorkerPayments";
 import ClientSales from "../Pages/ClientSale/ClientSales";
 import MaterialPurchases from "../Pages/MaterialPurchase/MaterialPurchases";
 import Employees from "../Pages/Employee/Employees";
+import Finance from "../Pages/Finance/Finance";
+import PlatformLogin from "../Pages/Platform/PlatformLogin";
+import PlatformDashboard from "../Pages/Platform/PlatformDashboard";
 
 const AppRouter = () => {
   return (
     <Routes>
+      <Route path="/platform/login" element={<PlatformLogin />} />
+      <Route path="/platform" element={<PlatformDashboard />} />
       <Route element={<PublicRoute />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -27,7 +32,6 @@ const AppRouter = () => {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/users" element={<Users />} />
           <Route path="/products" element={<Products />} />
           <Route path="/products/:id" element={<Product />} />
           <Route
@@ -40,10 +44,12 @@ const AppRouter = () => {
           <Route
             element={<ProtectedRoute allowedRoles={["super_admin", "admin"]} />}
           >
+            <Route path="/users" element={<Users />} />
             <Route path="/worker-payments" element={<WorkerPayments />} />
             <Route path="/client-sales" element={<ClientSales />} />
             <Route path="/material-purchases" element={<MaterialPurchases />} />
             <Route path="/employees" element={<Employees />} />
+            <Route path="/finance" element={<Finance />} />
             <Route path="/users/:id" element={<User />} />
           </Route>
         </Route>

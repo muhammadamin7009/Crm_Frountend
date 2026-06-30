@@ -7,7 +7,6 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import axios from "axios";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
@@ -16,6 +15,8 @@ import { toast } from "react-toastify";
 import { setSession } from "../../utils/auth";
 import { useAuth } from "../../Context/AuthContext";
 import SiteLogo from "../../images/zerr_02_logo.png";
+import api from "../../api/axios";
+import { getCompanySlug, setCompanySlug } from "../../utils/company";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -24,21 +25,36 @@ const Login = () => {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
       username: "",
       password: "",
+      company_slug: getCompanySlug(),
     },
   });
 
   const { setUser } = useAuth();
+  const companySlug = watch("company_slug");
+  const isZerrShoes = companySlug === "zerrshoes";
+  const companyTitle = isZerrShoes
+    ? "Zerr Shoes"
+    : companySlug
+      ? companySlug.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+      : "Korxona CRM";
 
   const onSubmit = async (values) => {
     setLoading(true);
 
     try {
-      const { data } = await axios.post("/users/login", values);
+      const companySlug = setCompanySlug(values.company_slug);
+      const { data } = await api.post("/users/login", {
+        username: values.username,
+        password: values.password,
+      }, {
+        baseURL: `${String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "")}/api/${companySlug}`,
+      });
 
       setSession({
         token: data.token,
@@ -67,7 +83,7 @@ const Login = () => {
             <Box>
               <Box className="mb-10 flex items-center gap-3">
                 <Box className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white">
-                  <img width={40} src={SiteLogo} alt="Zerr Shoes" />
+                  {isZerrShoes ? <img width={40} src={SiteLogo} alt={companyTitle} /> : <Typography fontWeight={900}>{companyTitle[0]}</Typography>}
                 </Box>
 
                 <Box>
@@ -75,7 +91,7 @@ const Login = () => {
                     fontWeight={900}
                     className="text-xl leading-tight"
                   >
-                    Zerr Shoes
+                    {companyTitle}
                   </Typography>
                   <Typography className="text-sm text-slate-300">
                     Korxona CRM
@@ -103,7 +119,7 @@ const Login = () => {
                   Hodimlar
                 </Typography>
                 <Typography variant="h6" fontWeight={900}>
-                  Role nazorati
+                  Ruxsat nazorati
                 </Typography>
               </Box>
               <Box className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -129,11 +145,11 @@ const Login = () => {
             <Box className="w-full max-w-lg">
               <Box className="mb-8 flex items-center gap-3 lg:hidden">
                 <Box className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
-                  <img width={34} src={SiteLogo} alt="Zerr Shoes" />
+                  {isZerrShoes ? <img width={34} src={SiteLogo} alt={companyTitle} /> : <Typography fontWeight={900}>{companyTitle[0]}</Typography>}
                 </Box>
                 <Box>
                   <Typography fontWeight={900} className="text-slate-950">
-                    Zerr Shoes
+                    {companyTitle}
                   </Typography>
                   <Typography variant="body2" className="text-slate-500">
                     Korxona CRM
@@ -158,6 +174,20 @@ const Login = () => {
                 <Box className="space-y-4">
                   <TextField
                     fullWidth
+                    label="Korxona kodi"
+                    autoComplete="organization"
+                    error={Boolean(errors.company_slug)}
+                    helperText={errors.company_slug?.message}
+                    {...register("company_slug", {
+                      required: "Korxona kodi majburiy",
+                      pattern: {
+                        value: /^[a-z0-9-]+$/,
+                        message: "Faqat kichik harf, raqam va chiziqcha",
+                      },
+                    })}
+                  />
+                  <TextField
+                    fullWidth
                     label="Username"
                     autoComplete="username"
                     error={Boolean(errors.username)}
@@ -165,7 +195,7 @@ const Login = () => {
                     {...register("username", {
                       required: "Username majburiy",
                     })}
-                    sx={{ marginBottom: "12px" }}
+                    sx={{ marginBottom: "12px", marginTop: "12px" }}
                   />
 
                   <TextField

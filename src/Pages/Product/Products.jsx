@@ -771,7 +771,7 @@ const Products = () => {
             <TextField
               select
               size="small"
-              label="Sort"
+              label="Saralash"
               value={filters.sort_by}
               onChange={handleFilterChange("sort_by")}
             >
@@ -779,7 +779,7 @@ const Products = () => {
               <MenuItem value="updated_at">Yangilangan</MenuItem>
               <MenuItem value="name">Nomi</MenuItem>
               <MenuItem value="sale_price">Sotuv narxi</MenuItem>
-              <MenuItem value="purchase_price">Xarid narxi</MenuItem>
+              {canManage && <MenuItem value="purchase_price">Xarid narxi</MenuItem>}
             </TextField>
             <TextField
               select
@@ -788,8 +788,8 @@ const Products = () => {
               value={filters.sort_order}
               onChange={handleFilterChange("sort_order")}
             >
-              <MenuItem value="desc">Desc</MenuItem>
-              <MenuItem value="asc">Asc</MenuItem>
+              <MenuItem value="desc">Yangidan eskiga</MenuItem>
+              <MenuItem value="asc">Eskidan yangiga</MenuItem>
             </TextField>
             <Button
               variant="outlined"
@@ -833,7 +833,7 @@ const Products = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Mahsulot</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Kategoriya</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>SKU / Model</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Xarid narxi</TableCell>
+                {canManage && <TableCell sx={{ fontWeight: 700 }}>Xarid narxi</TableCell>}
                 <TableCell sx={{ fontWeight: 700 }}>Sotuv narxi</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Holati</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Yangilangan</TableCell>
@@ -847,7 +847,7 @@ const Products = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 8 : 7} align="center">
+                  <TableCell colSpan={canManage ? 8 : 6} align="center">
                     <CircularProgress size={28} />
                   </TableCell>
                 </TableRow>
@@ -892,7 +892,7 @@ const Products = () => {
                         {product.model || "-"}
                       </Typography>
                     </TableCell>
-                    <TableCell>{formatMoney(product.purchase_price)}</TableCell>
+                    {canManage && <TableCell>{formatMoney(product.purchase_price)}</TableCell>}
                     <TableCell>
                       <Typography fontWeight={700}>
                         {formatMoney(product.sale_price)}
@@ -943,7 +943,7 @@ const Products = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 8 : 7} align="center">
+                  <TableCell colSpan={canManage ? 8 : 6} align="center">
                     Mahsulotlar topilmadi
                   </TableCell>
                 </TableRow>

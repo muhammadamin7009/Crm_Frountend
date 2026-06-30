@@ -157,7 +157,7 @@ const User = () => {
             </Box>
 
             <Chip
-              label={roleNames[employee.role] || employee.role || "Role berilmagan"}
+              label={roleNames[employee.role] || employee.role || "Ruxsat turi berilmagan"}
               color={getRoleColor(employee.role)}
               variant={employee.role === "customer" ? "outlined" : "filled"}
             />

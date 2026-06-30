@@ -25,11 +25,13 @@ import {
   createRawMaterial,
   createSupplier,
   createSupplierPayment,
+  deleteSupplier,
   deleteMaterialPurchase,
   getMaterialPurchases,
   getRawMaterials,
   getSupplierBalance,
   getSuppliers,
+  updateSupplier,
 } from "../../api/materialPurchases";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -91,6 +93,7 @@ const MaterialPurchases = () => {
   });
   const [purchaseForm, setPurchaseForm] = useState(emptyPurchase);
   const [supplierForm, setSupplierForm] = useState(emptySupplier);
+  const [selectedSupplierForEdit, setSelectedSupplierForEdit] = useState(null);
   const [materialForm, setMaterialForm] = useState(emptyMaterial);
   const [paymentForm, setPaymentForm] = useState(emptyPayment);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
@@ -193,6 +196,7 @@ const MaterialPurchases = () => {
     setQuickMaterialOpen(false);
     setPurchaseForm(emptyPurchase);
     setSupplierForm(emptySupplier);
+    setSelectedSupplierForEdit(null);
     setMaterialForm(emptyMaterial);
     setPaymentForm(emptyPayment);
   };
@@ -213,17 +217,48 @@ const MaterialPurchases = () => {
       return toast.error("Ta'minotchi nomini kiriting.");
     setSaving(true);
     try {
-      await createSupplier({
+      const payload = {
         ...supplierForm,
         opening_balance: Number(supplierForm.opening_balance || 0),
-      });
-      toast.success("Ta'minotchi qo'shildi.");
-      close();
-      refresh();
+      };
+      if (selectedSupplierForEdit) {
+        await updateSupplier(selectedSupplierForEdit.id, payload);
+        toast.success("Ta'minotchi yangilandi.");
+      } else {
+        await createSupplier(payload);
+        toast.success("Ta'minotchi qo'shildi.");
+      }
+      setSupplierForm(emptySupplier);
+      setSelectedSupplierForEdit(null);
+      await fetchDictionaries();
     } catch (error) {
       toast.error(error?.response?.data?.message || "Saqlashda xato.");
     } finally {
       setSaving(false);
+    }
+  };
+  const editSupplier = (supplier) => {
+    setSelectedSupplierForEdit(supplier);
+    setSupplierForm({
+      name: supplier.name || "",
+      phone: supplier.phone || "",
+      address: supplier.address || "",
+      opening_balance: supplier.opening_balance ?? "",
+      note: supplier.note || "",
+    });
+  };
+  const removeSupplier = async (supplier) => {
+    if (!window.confirm(`${supplier.name} ta'minotchisini o'chirmoqchimisiz?`)) return;
+    try {
+      await deleteSupplier(supplier.id);
+      toast.success("Ta'minotchi o'chirildi.");
+      if (selectedSupplierForEdit?.id === supplier.id) {
+        setSelectedSupplierForEdit(null);
+        setSupplierForm(emptySupplier);
+      }
+      refresh();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Ta'minotchini o'chirishda xato.");
     }
   };
   const saveMaterial = async () => {
@@ -269,7 +304,7 @@ const MaterialPurchases = () => {
           Number(item.unit_price) < 0,
       )
     )
-      return toast.error("Supplier va barcha homashyo qatorlarini to'ldiring.");
+      return toast.error("Ta'minotchi va barcha homashyo qatorlarini to'ldiring.");
     setSaving(true);
     try {
       await createMaterialPurchase({
@@ -293,7 +328,7 @@ const MaterialPurchases = () => {
   };
   const savePayment = async () => {
     if (!paymentForm.supplier_id || Number(paymentForm.amount) <= 0)
-      return toast.error("Supplier va summani kiriting.");
+      return toast.error("Ta'minotchi va summani kiriting.");
     setSaving(true);
     try {
       await createSupplierPayment({
@@ -301,7 +336,7 @@ const MaterialPurchases = () => {
         supplier_id: Number(paymentForm.supplier_id),
         amount: Number(paymentForm.amount),
       });
-      toast.success("Supplier to'lovi saqlandi.");
+      toast.success("Ta'minotchi to'lovi saqlandi.");
       close();
       refresh();
     } catch (error) {
@@ -325,7 +360,7 @@ const MaterialPurchases = () => {
         <Box className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label="Jami xarid" value={money(balance.total_purchase)} />
           <Stat label="Berilgan" value={money(balance.total_paid)} />
-          <Stat label="Supplier qarzi" value={money(balance.debt_amount)} />
+          <Stat label="Ta'minotchi qarzi" value={money(balance.debt_amount)} />
           <Stat label="Xaridlar" value={pageInfo.total} />
         </Box>
       </Box>
@@ -387,7 +422,7 @@ const MaterialPurchases = () => {
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
             <Button variant="outlined" onClick={() => setSupplierOpen(true)}>
-              Ta'minotchi
+              Ta'minotchilar
             </Button>
             <Button variant="outlined" onClick={() => setMaterialOpen(true)}>
               Homashyo
@@ -664,10 +699,14 @@ const MaterialPurchases = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={supplierOpen} onClose={close} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 800 }}>Ta'minotchi qo'shish</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} className="pt-2">
+      <Dialog open={supplierOpen} onClose={close} fullWidth maxWidth="md">
+        <DialogTitle sx={{ fontWeight: 800 }}>Ta'minotchilar</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} className="pt-1">
+            <Typography fontWeight={700}>
+              {selectedSupplierForEdit ? "Ta'minotchini tahrirlash" : "Yangi ta'minotchi"}
+            </Typography>
+            <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
               label="Nomi"
               value={supplierForm.name}
@@ -700,13 +739,62 @@ const MaterialPurchases = () => {
                 }))
               }
             />
+            </Box>
+            <TextField
+              multiline
+              minRows={2}
+              label="Izoh"
+              value={supplierForm.note}
+              onChange={(e) => setSupplierForm((p) => ({ ...p, note: e.target.value }))}
+            />
+            <Stack direction="row" spacing={1} justifyContent="flex-end">
+              {selectedSupplierForEdit && (
+                <Button onClick={() => { setSelectedSupplierForEdit(null); setSupplierForm(emptySupplier); }}>
+                  Tozalash
+                </Button>
+              )}
+              <Button variant="contained" disabled={saving} onClick={saveSupplier}>
+                {saving ? "Saqlanmoqda..." : selectedSupplierForEdit ? "Yangilash" : "Qo'shish"}
+              </Button>
+            </Stack>
           </Stack>
+
+          <Box className="mt-5 overflow-auto rounded-xl border border-slate-200">
+            <Table size="small" sx={{ minWidth: 720 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>Nomi</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Telefon</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Manzil</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Boshlang'ich qarz</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Hozirgi qarz</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>Amallar</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {suppliers.length ? suppliers.map((supplier) => (
+                  <TableRow key={supplier.id} hover>
+                    <TableCell><Typography fontWeight={700}>{supplier.name}</Typography></TableCell>
+                    <TableCell>{supplier.phone || "-"}</TableCell>
+                    <TableCell>{supplier.address || "-"}</TableCell>
+                    <TableCell>{money(supplier.opening_balance)}</TableCell>
+                    <TableCell><Typography fontWeight={700}>{money(supplier.current_debt)}</Typography></TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button size="small" variant="outlined" onClick={() => editSupplier(supplier)}>O'zgartirish</Button>
+                        <Button size="small" variant="outlined" color="error" onClick={() => removeSupplier(supplier)}>O'chirish</Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow><TableCell colSpan={6} align="center">Ta'minotchilar topilmadi</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={close}>Bekor qilish</Button>
-          <Button variant="contained" disabled={saving} onClick={saveSupplier}>
-            Saqlash
-          </Button>
+          <Button onClick={close}>Yopish</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={materialOpen} onClose={close} fullWidth maxWidth="sm">

@@ -27,6 +27,7 @@ import { getUsers } from "../../api/getUsers";
 import { getProducts } from "../../api/products";
 import {
   createClientSale,
+  createBulkClientSale,
   deleteClientSale,
   getClientBalance,
   getClientSales,
@@ -43,6 +44,7 @@ const emptyForm = {
   paid_amount: "",
   sold_at: new Date().toISOString().slice(0, 10),
   note: "",
+  items: [{ product_id: "", quantity: "", unit_price: "" }],
 };
 
 const emptyPaymentForm = {
@@ -151,7 +153,13 @@ const ClientSales = () => {
   );
 
   const preview = useMemo(() => {
-    const total = Number(form.quantity || 0) * Number(form.unit_price || 0);
+    const total = selectedSale
+      ? Number(form.quantity || 0) * Number(form.unit_price || 0)
+      : form.items.reduce(
+          (sum, item) =>
+            sum + Number(item.quantity || 0) * Number(item.unit_price || 0),
+          0,
+        );
     const paid = Number(form.paid_amount || 0);
 
     return {
@@ -160,7 +168,7 @@ const ClientSales = () => {
       debt: Math.max(total - paid, 0),
       overPaid: paid > total && total > 0,
     };
-  }, [form.quantity, form.unit_price, form.paid_amount]);
+  }, [form.quantity, form.unit_price, form.paid_amount, form.items, selectedSale]);
 
   const fetchDictionaries = useCallback(async () => {
     try {
@@ -189,7 +197,7 @@ const ClientSales = () => {
     } catch (error) {
       toast.error(
         error?.response?.data?.message ||
-          "Client va mahsulotlarni olishda xato.",
+          "Mijoz va mahsulotlarni olishda xato.",
       );
     }
   }, []);
@@ -312,6 +320,26 @@ const ClientSales = () => {
     setForm((previous) => ({ ...previous, [field]: value }));
   };
 
+  const handleSaleItemChange = (index, field, value) => {
+    setForm((previous) => ({
+      ...previous,
+      items: previous.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        if (field === "product_id") {
+          const product = products.find(
+            (row) => Number(row.id) === Number(value),
+          );
+          return {
+            ...item,
+            product_id: value,
+            unit_price: product?.sale_price ?? item.unit_price,
+          };
+        }
+        return { ...item, [field]: value };
+      }),
+    }));
+  };
+
   const applyFilters = () => {
     fetchSales(0, pageInfo.limit);
     fetchSummary();
@@ -331,8 +359,13 @@ const ClientSales = () => {
     setForm({
       ...emptyForm,
       client_id: filters.client_id || "",
-      product_id: filters.product_id || "",
-      unit_price: product?.sale_price ?? "",
+      items: [
+        {
+          product_id: filters.product_id || "",
+          quantity: "",
+          unit_price: product?.sale_price ?? "",
+        },
+      ],
     });
     setModalOpen(true);
   };
@@ -349,6 +382,7 @@ const ClientSales = () => {
         ? String(sale.sold_at).slice(0, 10)
         : emptyForm.sold_at,
       note: sale.note || "",
+      items: [],
     });
     setModalOpen(true);
   };
@@ -376,7 +410,7 @@ const ClientSales = () => {
       );
     } catch (error) {
       toast.error(
-        error?.response?.data?.message || "Client balansini olishda xato.",
+        error?.response?.data?.message || "Mijoz balansini olishda xato.",
       );
     } finally {
       setPaymentBalanceLoading(false);
@@ -460,19 +494,25 @@ const ClientSales = () => {
 
   const validateForm = () => {
     if (!form.client_id) {
-      toast.error("Client tanlang.");
+      toast.error("Mijozni tanlang.");
       return false;
     }
-    if (!form.product_id) {
-      toast.error("Mahsulot tanlang.");
-      return false;
-    }
-    if (!form.quantity || Number(form.quantity) <= 0) {
-      toast.error("Miqdorni to'g'ri kiriting.");
-      return false;
-    }
-    if (!form.unit_price || Number(form.unit_price) < 0) {
-      toast.error("Sotish narxini to'g'ri kiriting.");
+    if (selectedSale) {
+      if (!form.product_id || !form.quantity || Number(form.quantity) <= 0) {
+        toast.error("Mahsulot va miqdorni to'g'ri kiriting.");
+        return false;
+      }
+    } else if (
+      !form.items.length ||
+      form.items.some(
+        (item) =>
+          !item.product_id ||
+          Number(item.quantity) <= 0 ||
+          item.unit_price === "" ||
+          Number(item.unit_price) < 0,
+      )
+    ) {
+      toast.error("Barcha mahsulot qatorlarini to'liq kiriting.");
       return false;
     }
     if (Number(form.paid_amount || 0) < 0) {
@@ -496,6 +536,18 @@ const ClientSales = () => {
     note: form.note.trim() || null,
   });
 
+  const buildBulkPayload = () => ({
+    client_id: Number(form.client_id),
+    paid_amount: Number(form.paid_amount || 0),
+    sold_at: form.sold_at || undefined,
+    note: form.note.trim() || null,
+    items: form.items.map((item) => ({
+      product_id: Number(item.product_id),
+      quantity: Number(item.quantity),
+      unit_price: Number(item.unit_price),
+    })),
+  });
+
   const handleSave = async () => {
     if (!validateForm()) return;
     setSaving(true);
@@ -505,8 +557,8 @@ const ClientSales = () => {
         await updateClientSale(selectedSale.id, buildPayload());
         toast.success("Savdo yangilandi.");
       } else {
-        await createClientSale(buildPayload());
-        toast.success("Savdo qo'shildi.");
+        await createBulkClientSale(buildBulkPayload());
+        toast.success(`${form.items.length} xil mahsulot savdoga qo'shildi.`);
       }
 
       closeModals();
@@ -538,7 +590,7 @@ const ClientSales = () => {
 
   const validatePaymentForm = () => {
     if (!paymentForm.client_id) {
-      toast.error("Client tanlang.");
+      toast.error("Mijozni tanlang.");
       return false;
     }
     if (!paymentForm.amount || Number(paymentForm.amount) <= 0) {
@@ -567,7 +619,7 @@ const ClientSales = () => {
         note: paymentForm.note.trim() || null,
       });
 
-      toast.success("Client to'lovi kiritildi.");
+      toast.success("Mijoz to'lovi kiritildi.");
       closeModals();
       refreshPage();
     } catch (error) {
@@ -585,7 +637,7 @@ const ClientSales = () => {
             Mijoz savdo
           </Typography>
           <Typography variant="body2" className="mt-1 text-slate-500">
-            Clientlarga berilgan mahsulotlar, to'lovlar va qarzdorlik nazorati
+            Mijozlarga berilgan mahsulotlar, to'lovlar va qarzdorlik nazorati
           </Typography>
         </Box>
 
@@ -615,7 +667,7 @@ const ClientSales = () => {
             <TextField
               select
               size="small"
-              label="Client"
+              label="Mijoz"
               value={filters.client_id}
               onChange={handleFilterChange("client_id")}
             >
@@ -659,7 +711,7 @@ const ClientSales = () => {
             <TextField
               select
               size="small"
-              label="Sort"
+              label="Saralash"
               value={filters.sort_by}
               onChange={handleFilterChange("sort_by")}
             >
@@ -676,8 +728,8 @@ const ClientSales = () => {
               value={filters.sort_order}
               onChange={handleFilterChange("sort_order")}
             >
-              <MenuItem value="desc">Desc</MenuItem>
-              <MenuItem value="asc">Asc</MenuItem>
+              <MenuItem value="desc">Yangidan eskiga</MenuItem>
+              <MenuItem value="asc">Eskidan yangiga</MenuItem>
             </TextField>
             <TextField
               select
@@ -686,7 +738,7 @@ const ClientSales = () => {
               value={filters.group_by}
               onChange={handleFilterChange("group_by")}
             >
-              <MenuItem value="client">Client</MenuItem>
+              <MenuItem value="client">Mijoz</MenuItem>
               <MenuItem value="product">Mahsulot</MenuItem>
               <MenuItem value="day">Kun</MenuItem>
             </TextField>
@@ -762,7 +814,7 @@ const ClientSales = () => {
           <Table sx={{ minWidth: 1180 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Client</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Mijoz</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Mahsulot</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Miqdor</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Narx</TableCell>
@@ -912,7 +964,7 @@ const ClientSales = () => {
 
       <Dialog open={modalOpen} onClose={closeModals} fullWidth maxWidth="md">
         <DialogTitle sx={{ fontWeight: 800 }}>
-          {selectedSale ? "Savdoni tahrirlash" : "Clientga mahsulot sotish"}
+          {selectedSale ? "Savdoni tahrirlash" : "Mijozga mahsulot sotish"}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} className="pt-2">
@@ -920,7 +972,7 @@ const ClientSales = () => {
               <TextField
                 select
                 required
-                label="Client"
+                label="Mijoz"
                 value={form.client_id}
                 onChange={handleFormChange("client_id")}
               >
@@ -930,53 +982,25 @@ const ClientSales = () => {
                   </MenuItem>
                 ))}
               </TextField>
-              <TextField
-                select
-                required
-                label="Mahsulot"
-                value={form.product_id}
-                onChange={handleFormChange("product_id")}
-              >
-                {products.map((product) => (
-                  <MenuItem key={product.id} value={product.id}>
-                    {product.name} - {formatMoney(product.sale_price)}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                required
-                type="number"
-                label="Miqdor"
-                value={form.quantity}
-                onChange={handleFormChange("quantity")}
-                slotProps={{ htmlInput: { min: 0, step: 1 } }}
-              />
-              <TextField
-                required
-                type="number"
-                label="Sotish narxi"
-                value={form.unit_price}
-                onChange={handleFormChange("unit_price")}
-                helperText={
-                  selectedProduct
-                    ? `Default: ${formatMoney(selectedProduct.sale_price)}`
-                    : "Mahsulot tanlanganda avtomatik tushadi"
-                }
-                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
-              />
-              <TextField
-                type="number"
-                label="To'langan summa"
-                value={form.paid_amount}
-                onChange={handleFormChange("paid_amount")}
-                error={preview.overPaid}
-                helperText={
-                  preview.overPaid
-                    ? "To'lov jami summadan oshmasin"
-                    : "Qisman to'lov yoki 0 bo'lishi mumkin"
-                }
-                slotProps={{ htmlInput: { min: 0, step: 1000 } }}
-              />
+              {selectedSale && (
+                <>
+                  <TextField
+                    select
+                    required
+                    label="Mahsulot"
+                    value={form.product_id}
+                    onChange={handleFormChange("product_id")}
+                  >
+                    {products.map((product) => (
+                      <MenuItem key={product.id} value={product.id}>
+                        {product.name} - {formatMoney(product.sale_price)}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField required type="number" label="Miqdor" value={form.quantity} onChange={handleFormChange("quantity")} slotProps={{ htmlInput: { min: 0, step: 1 } }} />
+                  <TextField required type="number" label="Sotish narxi" value={form.unit_price} onChange={handleFormChange("unit_price")} helperText={selectedProduct ? `Default: ${formatMoney(selectedProduct.sale_price)}` : "Mahsulot tanlanganda avtomatik tushadi"} slotProps={{ htmlInput: { min: 0, step: 1000 } }} />
+                </>
+              )}
               <TextField
                 type="date"
                 label="Sotilgan sana"
@@ -986,6 +1010,24 @@ const ClientSales = () => {
               />
             </Box>
 
+            {!selectedSale && (
+              <Stack spacing={1.5}>
+                {form.items.map((item, index) => (
+                  <Box key={index} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1.5fr_0.8fr_1fr_auto]">
+                    <TextField select label="Mahsulot" value={item.product_id} onChange={(event) => handleSaleItemChange(index, "product_id", event.target.value)}>
+                      {products.map((product) => <MenuItem key={product.id} value={product.id}>{product.name} - {formatMoney(product.sale_price)}</MenuItem>)}
+                    </TextField>
+                    <TextField type="number" label="Miqdor" value={item.quantity} onChange={(event) => handleSaleItemChange(index, "quantity", event.target.value)} slotProps={{ htmlInput: { min: 0, step: 1 } }} />
+                    <TextField type="number" label="Sotish narxi" value={item.unit_price} onChange={(event) => handleSaleItemChange(index, "unit_price", event.target.value)} slotProps={{ htmlInput: { min: 0, step: 1000 } }} />
+                    <Button color="error" disabled={form.items.length === 1} onClick={() => setForm((previous) => ({ ...previous, items: previous.items.filter((_, itemIndex) => itemIndex !== index) }))}>Olib tashlash</Button>
+                  </Box>
+                ))}
+                <Button variant="outlined" onClick={() => setForm((previous) => ({ ...previous, items: [...previous.items, { product_id: "", quantity: "", unit_price: "" }] }))}>
+                  Yana mahsulot
+                </Button>
+              </Stack>
+            )}
+
             <Box className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
               <StatBox label="Jami" value={formatMoney(preview.total)} />
               <StatBox label="To'langan" value={formatMoney(preview.paid)} />
@@ -994,6 +1036,21 @@ const ClientSales = () => {
                 value={formatMoney(preview.debt)}
               />
             </Box>
+
+            <TextField
+              fullWidth
+              type="number"
+              label="To'langan summa"
+              value={form.paid_amount}
+              onChange={handleFormChange("paid_amount")}
+              error={preview.overPaid}
+              helperText={
+                preview.overPaid
+                  ? "To'lov jami summadan oshmasin"
+                  : "Qisman to'lov yoki 0 bo'lishi mumkin"
+              }
+              slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+            />
 
             <TextField
               fullWidth
@@ -1036,13 +1093,13 @@ const ClientSales = () => {
       </Dialog>
 
       <Dialog open={paymentOpen} onClose={closeModals} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 800 }}>Clientdan kirim</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>Mijozdan to'lov</DialogTitle>
         <DialogContent>
           <Stack spacing={2} className="pt-2">
             <TextField
               select
               required
-              label="Client"
+              label="Mijoz"
               value={paymentForm.client_id}
               onChange={handlePaymentChange("client_id")}
               disabled={Boolean(selectedSale)}

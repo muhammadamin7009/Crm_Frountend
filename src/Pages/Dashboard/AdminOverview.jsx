@@ -177,7 +177,7 @@ const AdminOverview = ({ user }) => {
     } catch (error) {
       toast.error(
         error?.response?.data?.message ||
-          "Dashboard ma'lumotlarini olishda xato.",
+          "Bosh sahifa ma'lumotlarini olishda xato.",
       );
     } finally {
       setLoading(false);
@@ -206,7 +206,7 @@ const AdminOverview = ({ user }) => {
       <Box className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <Box>
           <Typography variant="h5" fontWeight={800}>
-            Dashboard
+            Bosh sahifa
           </Typography>
           <Typography variant="body2" className="mt-1 text-slate-500">
             Salom, {user?.first_name || "Admin"}. Korxonaning asosiy hisoblari
@@ -292,7 +292,7 @@ const AdminOverview = ({ user }) => {
         {[
           ["all", "Hammasi"],
           ["workers", "Ishchilar"],
-          ["clients", "Clientlar"],
+          ["clients", "Mijozlar"],
           ["suppliers", "Ta'minotchilar"],
         ].map(([value, label]) => (
           <Button
@@ -313,7 +313,7 @@ const AdminOverview = ({ user }) => {
           <Card
             label="Olinadigan pul"
             value={money(data.clientDebt)}
-            helper="Clientlarning jami qarzi"
+            helper="Mijozlarning jami qarzi"
             tone="success"
           />
           <Card
@@ -336,18 +336,18 @@ const AdminOverview = ({ user }) => {
             {showClient && (
               <>
                 <Card
-                  label="Client savdosi"
+                  label="Mijozlarga savdo"
                   value={money(data.sales)}
                   helper={`${data.salesCount} ta savdo, tanlangan davr`}
                 />
                 <Card
-                  label="Client tushumi"
+                  label="Mijozlardan tushum"
                   value={money(data.clientIncome)}
                   helper="Tanlangan davrda olingan"
                   tone="success"
                 />
                 <Card
-                  label="Client qarzi"
+                  label="Mijozlar qarzi"
                   value={money(data.clientDebt)}
                   helper="Barcha davr"
                 />
@@ -421,7 +421,7 @@ const AdminOverview = ({ user }) => {
             className="rounded-xl border border-slate-200 p-5"
           >
             <Typography fontWeight={800} className="mb-3">
-              Clientlar bo‘yicha
+              Mijozlar bo‘yicha
             </Typography>
             {clients.length ? (
               <Box className="space-y-2">

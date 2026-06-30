@@ -32,6 +32,7 @@ import {
   getSupplierBalance,
 } from "../../api/materialPurchases";
 import AdminOverview from "./AdminOverview";
+import ClientDashboard from "./ClientDashboard";
 
 const getLocalUser = () => {
   try {
@@ -158,7 +159,7 @@ const WorkerDashboard = ({ user }) => {
     } catch (error) {
       toast.error(
         error?.response?.data?.message ||
-          "Dashboard ma'lumotlarini olishda xato.",
+          "Bosh sahifa ma'lumotlarini olishda xato.",
       );
     } finally {
       setLoading(false);
@@ -426,7 +427,7 @@ const AdminDashboard = ({ user }) => {
       <Box className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <Box>
           <Typography variant="h5" fontWeight={800} className="text-slate-950">
-            Dashboard
+            Bosh sahifa
           </Typography>
           <Typography variant="body2" className="mt-1 text-slate-500">
             Salom, {user?.first_name || "Admin"}. Korxona bo'yicha umumiy
@@ -468,7 +469,7 @@ const AdminDashboard = ({ user }) => {
             <StatCard
               label="Bu oy miqdor"
               value={formatNumber(stats.totalQuantity)}
-              helper="Worker ishlari"
+              helper="Ishchilar bajargan ishlar"
             />
             <StatCard
               label="Bu oy summa"
@@ -597,7 +598,7 @@ const AdminDashboard = ({ user }) => {
             <StatCard
               label="To'langan"
               value={formatMoney(clientStats.paidAmount)}
-              helper="Clientlardan tushgan pul"
+              helper="Mijozlardan tushgan pul"
             />
             <StatCard
               label="Qarzdorlik"
@@ -617,7 +618,7 @@ const AdminDashboard = ({ user }) => {
               className="rounded-2xl border border-slate-200 bg-white p-5"
             >
               <Typography fontWeight={800} className="mb-3 text-slate-950">
-                Clientlar bo'yicha
+                Mijozlar bo'yicha
               </Typography>
 
               {clientSummary.length ? (
@@ -633,7 +634,7 @@ const AdminDashboard = ({ user }) => {
                         </Avatar>
                         <Box className="min-w-0">
                           <Typography className="truncate" fontWeight={800}>
-                            {item.group_name || "Client"}
+                            {item.group_name || "Mijoz"}
                           </Typography>
                           <Typography
                             variant="body2"
@@ -701,7 +702,7 @@ const AdminDashboard = ({ user }) => {
               <Box className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
                 <StatCard label="Homashyo xaridi" value={formatMoney(purchaseStats.totalPurchase)} helper="Bu oy kelgan homashyolar" />
                 <StatCard label="Ta'minotchiga berildi" value={formatMoney(purchaseStats.totalPaid)} helper="Bu oy chiqim qilingan" />
-                <StatCard label="Supplier qarzi" value={formatMoney(purchaseStats.debtAmount)} helper="Hali berilmagan summa" />
+                <StatCard label="Ta'minotchi qarzi" value={formatMoney(purchaseStats.debtAmount)} helper="Hali berilmagan summa" />
                 <StatCard label="Xarid yozuvlari" value={purchaseStats.purchasesCount} helper="Bu oygi kirimlar" />
               </Box>
 
@@ -735,7 +736,7 @@ const BusinessDashboard = ({ user }) => (
   <Box className="h-full overflow-auto pr-1">
     <Box className="mb-5">
       <Typography variant="h5" fontWeight={800} className="text-slate-950">
-        Dashboard
+        Bosh sahifa
       </Typography>
       <Typography variant="body2" className="mt-1 text-slate-500">
         Salom, {user?.first_name || "Foydalanuvchi"}. Hisobingiz faol.
@@ -750,18 +751,18 @@ const BusinessDashboard = ({ user }) => (
         Ma'lumotlaringiz administrator tomonidan boshqariladi
       </Typography>
       <Typography className="mt-2 max-w-2xl text-slate-500">
-        Bu role uchun ish haqi va ishlab chiqarish dashboardi ochilmaydi.
-        Kerakli ma'lumot yoki role o'zgarishi bo'yicha administrator bilan
+        Bu ruxsat turi uchun ish haqi va ishlab chiqarish ma'lumotlari ochilmaydi.
+        Kerakli ma'lumot yoki ruxsat o'zgarishi bo'yicha administrator bilan
         bog'laning.
       </Typography>
       <Box className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
-          label="Role"
+          label="Ruxsat turi"
           value={user?.role || "-"}
-          helper="Joriy foydalanuvchi role"
+          helper="Joriy foydalanuvchi ruxsati"
         />
         <StatCard
-          label="Status"
+          label="Holati"
           value="Faol"
           helper="Tizimga kirish ruxsati bor"
         />
@@ -785,6 +786,10 @@ const Dashboard = () => {
 
   if (["super_admin", "admin"].includes(user?.role)) {
     return <AdminOverview user={user} />;
+  }
+
+  if (user?.role === "client") {
+    return <ClientDashboard user={user} />;
   }
 
   return <BusinessDashboard user={user} />;

@@ -250,11 +250,13 @@ const Product = () => {
             />
           </Box>
 
-          <Box className="mt-5 mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Box className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <Typography variant="body2" className="text-slate-500">Xarid narxi</Typography>
-              <Typography variant="h6" fontWeight={800}>{formatMoney(product.purchase_price)}</Typography>
-            </Box>
+          <Box className={`mt-5 mb-3 grid grid-cols-1 gap-3 ${canManagePrices ? "sm:grid-cols-2" : ""}`}>
+            {canManagePrices && (
+              <Box className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <Typography variant="body2" className="text-slate-500">Xarid narxi</Typography>
+                <Typography variant="h6" fontWeight={800}>{formatMoney(product.purchase_price)}</Typography>
+              </Box>
+            )}
             <Box className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <Typography variant="body2" className="text-slate-500">Sotuv narxi</Typography>
               <Typography variant="h6" fontWeight={800}>{formatMoney(product.sale_price)}</Typography>
@@ -313,7 +315,7 @@ const Product = () => {
                                 {row.department_name}
                               </Typography>
                               <Typography variant="body2" className="text-slate-500">
-                                {row.department_code || "code yo'q"}
+                                {row.department_code || "Kod kiritilmagan"}
                               </Typography>
                             </Box>
                             <Chip

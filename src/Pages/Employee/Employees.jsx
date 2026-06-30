@@ -186,7 +186,7 @@ const Employees = () => {
             Lavozim va kelishuvlar
           </Typography>
           <Typography variant="body2" className="mt-1 text-slate-500">
-            Role, korxona lavozimi va ish haqi kelishuvini alohida boshqarish
+            Tizim ruxsati, korxona lavozimi va ish haqi kelishuvini boshqarish
           </Typography>
         </Box>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
@@ -240,7 +240,7 @@ const Employees = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Hodim</TableCell>
-                <TableCell>Tizim role</TableCell>
+                <TableCell>Tizim ruxsati</TableCell>
                 <TableCell>Lavozim</TableCell>
                 <TableCell>Bo'lim</TableCell>
                 <TableCell>Hisob turi</TableCell>

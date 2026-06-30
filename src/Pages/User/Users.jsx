@@ -91,6 +91,7 @@ const Users = () => {
   });
 
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
   const [loading, setLoading] = useState(false);
@@ -171,6 +172,7 @@ const Users = () => {
     try {
       const res = await getUsers({
         q: query,
+        role: roleFilter || undefined,
         offset,
         limit,
         sort_by: sortBy,
@@ -190,7 +192,7 @@ const Users = () => {
 
   useEffect(() => {
     fetchUsers(0, pageInfo.limit);
-  }, [sortBy, sortOrder]);
+  }, [sortBy, sortOrder, roleFilter]);
 
   const handleSearch = () => {
     fetchUsers(0, pageInfo.limit);
@@ -405,7 +407,7 @@ const Users = () => {
           </Box>
           <Box className="hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:block">
             <Typography variant="body2" className="text-slate-500">
-              Role
+              Ruxsat turi
             </Typography>
             <Typography variant="h6" fontWeight={800}>
               {currentUser?.role === "super_admin" ? "Barcha" : "Cheklangan"}
@@ -419,7 +421,7 @@ const Users = () => {
         className="mb-4 shrink-0 rounded-2xl border border-slate-200 p-4"
       >
         <Box className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <TextField
               size="small"
               label="Qidirish"
@@ -434,7 +436,23 @@ const Users = () => {
             <TextField
               select
               size="small"
-              label="Sort"
+              label="Ruxsat turi"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <MenuItem value="">Barcha ruxsat turlari</MenuItem>
+              <MenuItem value="super_admin">Super admin</MenuItem>
+              <MenuItem value="admin">Admin</MenuItem>
+              <MenuItem value="client">Mijoz</MenuItem>
+              <MenuItem value="supplier">Ta'minotchi</MenuItem>
+              <MenuItem value="customer">Xaridor</MenuItem>
+              <MenuItem value="worker">Ishchi</MenuItem>
+            </TextField>
+
+            <TextField
+              select
+              size="small"
+              label="Saralash"
               value={sortBy}
               onChange={(e) => {
                 setSortBy(e.target.value);
@@ -452,12 +470,12 @@ const Users = () => {
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
             >
-              <MenuItem value="desc">Desc</MenuItem>
-              <MenuItem value="asc">Asc</MenuItem>
+              <MenuItem value="desc">Yangidan eskiga</MenuItem>
+              <MenuItem value="asc">Eskidan yangiga</MenuItem>
             </TextField>
 
             <Button variant="outlined" onClick={handleSearch}>
-              Search
+              Qidirish
             </Button>
           </Box>
 
@@ -484,7 +502,7 @@ const Users = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Hodim</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Username</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Telefon</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Ruxsat turi</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Yangilangan sana</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>
                   Amallar
@@ -654,13 +672,13 @@ const Users = () => {
             <TextField
               select
               fullWidth
-              label="Role"
+              label="Ruxsat turi"
               value={form.role}
               onChange={handleFormChange("role")}
             >
               {createRoleOptions.map((role) => (
                 <MenuItem key={role} value={role}>
-                  {role}
+                  {roleNames[role] || role}
                 </MenuItem>
               ))}
             </TextField>
@@ -741,13 +759,13 @@ const Users = () => {
               <TextField
                 select
                 fullWidth
-                label="Role"
+                label="Ruxsat turi"
                 value={form.role}
                 onChange={handleFormChange("role")}
               >
                 {editRoleOptions.map((role) => (
                   <MenuItem key={role} value={role}>
-                    {role}
+                    {roleNames[role] || role}
                   </MenuItem>
                 ))}
               </TextField>

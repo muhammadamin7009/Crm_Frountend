@@ -1,6 +1,7 @@
 export const setSession = ({ token, user }) => {
   if (token) localStorage.setItem("token", token);
   if (user) localStorage.setItem("user", JSON.stringify(user));
+  if (user?.company_slug) localStorage.setItem("company_slug", user.company_slug);
 };
 
 export const clearSession = () => {

@@ -16,7 +16,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { clearSession } from "../../utils/auth";
 
 const mobileMenuItems = [
-  { label: "Dashboard", path: "/", end: true },
+  { label: "Bosh sahifa", path: "/", end: true },
   { label: "Hodimlar", path: "/users" },
   { label: "Mahsulotlar", path: "/products" },
   {
@@ -143,7 +143,7 @@ const TopBar = () => {
                   {fullName || user.username || "Foydalanuvchi"}
                 </Typography>
                 <Typography variant="body2" className="truncate text-slate-500">
-                  {roleNames[user.role] || user.role || "Role"}
+                  {roleNames[user.role] || user.role || "Ruxsat turi"}
                 </Typography>
               </Box>
             </Box>

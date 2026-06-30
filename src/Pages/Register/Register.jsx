@@ -1,11 +1,12 @@
 import { Box, Button, Paper, TextField, Typography } from "@mui/material";
-import axios from "axios";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import SiteLogo from "../../images/zerr_02_logo.png";
+import api from "../../api/axios";
+import { getCompanySlug, setCompanySlug } from "../../utils/company";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -24,18 +25,29 @@ const Register = () => {
       phone: "",
       password: "",
       confirm_password: "",
+      company_slug: getCompanySlug(),
     },
   });
 
   const password = watch("password");
+  const companySlug = watch("company_slug");
+  const isZerrShoes = companySlug === "zerrshoes";
+  const companyTitle = isZerrShoes
+    ? "Zerr Shoes"
+    : companySlug
+      ? companySlug.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+      : "Korxona CRM";
 
-  const onSubmit = async ({ confirm_password, ...values }) => {
+  const onSubmit = async ({ confirm_password, company_slug, ...values }) => {
     setLoading(true);
 
     try {
-      await axios.post("/users", {
+      const companySlug = setCompanySlug(company_slug);
+      await api.post("/users", {
         ...values,
         phone: values.phone || null,
+      }, {
+        baseURL: `${String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "")}/api/${companySlug}`,
       });
 
       toast.success("Ro'yxatdan o'tdingiz. Endi tizimga kiring.");
@@ -60,14 +72,14 @@ const Register = () => {
             <Box>
               <Box className="mb-10 flex items-center gap-3">
                 <Box className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white">
-                  <img width={40} src={SiteLogo} alt="Zerr Shoes" />
+                  {isZerrShoes ? <img width={40} src={SiteLogo} alt={companyTitle} /> : <Typography fontWeight={900}>{companyTitle[0]}</Typography>}
                 </Box>
                 <Box>
                   <Typography
                     fontWeight={900}
                     className="text-xl leading-tight"
                   >
-                    Zerr Shoes
+                    {companyTitle}
                   </Typography>
                   <Typography className="text-sm text-slate-300">
                     Korxona CRM
@@ -83,8 +95,8 @@ const Register = () => {
                 Ro'yxatdan o'ting va CRM hisobingizni yarating.
               </Typography>
               <Typography className="mt-5 max-w-lg text-base leading-7 text-slate-300">
-                Yangi foydalanuvchilar avtomatik customer role bilan yaratiladi.
-                Keyinchalik admin kerak bo'lsa role'ni o'zgartiradi.
+                Yangi foydalanuvchi avtomatik xaridor ruxsati bilan yaratiladi.
+                Keyinchalik administrator zarur bo'lsa ruxsat turini o'zgartiradi.
               </Typography>
             </Box>
 
@@ -100,11 +112,11 @@ const Register = () => {
             <Box className="w-full max-w-lg">
               <Box className="mb-8 flex items-center gap-3 lg:hidden">
                 <Box className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
-                  <img width={34} src={SiteLogo} alt="Zerr Shoes" />
+                  {isZerrShoes ? <img width={34} src={SiteLogo} alt={companyTitle} /> : <Typography fontWeight={900}>{companyTitle[0]}</Typography>}
                 </Box>
                 <Box>
                   <Typography fontWeight={900} className="text-slate-950">
-                    Zerr Shoes
+                    {companyTitle}
                   </Typography>
                   <Typography variant="body2" className="text-slate-500">
                     Korxona CRM
@@ -121,12 +133,25 @@ const Register = () => {
                   Ro'yxatdan o'tish
                 </Typography>
                 <Typography className="mt-2 text-slate-500">
-                  Ma'lumotlarni kiriting. Hisob customer role bilan ochiladi.
+                  Ma'lumotlarni kiriting. Hisob xaridor ruxsati bilan ochiladi.
                 </Typography>
               </Box>
 
               <form onSubmit={handleSubmit(onSubmit)}>
                 <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <TextField
+                    fullWidth
+                    label="Korxona kodi"
+                    error={Boolean(errors.company_slug)}
+                    helperText={errors.company_slug?.message}
+                    {...register("company_slug", {
+                      required: "Korxona kodi majburiy",
+                      pattern: {
+                        value: /^[a-z0-9-]+$/,
+                        message: "Faqat kichik harf, raqam va chiziqcha",
+                      },
+                    })}
+                  />
                   <TextField
                     fullWidth
                     label="Ism"

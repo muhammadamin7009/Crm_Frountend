@@ -16,12 +16,16 @@ import { clearSession } from "../../utils/auth";
 const menuGroups = [
   {
     label: "Asosiy",
-    items: [{ label: "Dashboard", path: "/", end: true }],
+    items: [{ label: "Bosh sahifa", path: "/", end: true }],
   },
   {
     label: "Boshqaruv",
     items: [
-      { label: "Hodimlar", path: "/users" },
+      {
+        label: "Hodimlar",
+        path: "/users",
+        allowedRoles: ["super_admin", "admin"],
+      },
       {
         label: "Lavozim va kelishuvlar",
         path: "/employees",
@@ -58,6 +62,11 @@ const menuGroups = [
         path: "/material-purchases",
         allowedRoles: ["super_admin", "admin"],
       },
+      {
+        label: "Moliya va hisob",
+        path: "/finance",
+        allowedRoles: ["super_admin", "admin"],
+      },
     ],
   },
 ];
@@ -89,13 +98,21 @@ const Sidebar = () => {
   };
 
   const fullName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim();
+  const isZerrShoes = user?.company_slug === "zerrshoes" || !user?.company_slug;
+  const companyName = user?.company_name || (isZerrShoes ? "Zerr Shoes" : "Korxona CRM");
 
   return (
     <Box className="hidden h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white md:flex">
       <Box className="px-5 pb-4 pt-5">
         <Box className="flex items-center gap-3">
           <Box className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
-            <img width={34} src={SiteLogo} alt="Zerr Shoes" />
+            {isZerrShoes ? (
+              <img width={34} src={SiteLogo} alt={companyName} />
+            ) : (
+              <Typography fontWeight={900} className="text-slate-900">
+                {companyName[0]?.toUpperCase() || "K"}
+              </Typography>
+            )}
           </Box>
 
           <Box className="min-w-0">
@@ -103,7 +120,7 @@ const Sidebar = () => {
               fontWeight={800}
               className="leading-tight text-slate-950"
             >
-              Zerr Shoes
+              {companyName}
             </Typography>
             <Typography variant="body2" className="text-slate-500">
               Korxona CRM
@@ -186,7 +203,7 @@ const Sidebar = () => {
               {fullName || user?.username || "Foydalanuvchi"}
             </Typography>
             <Typography variant="body2" className="truncate text-slate-500">
-              {roleNames[user?.role] || user?.role || "Role"}
+              {roleNames[user?.role] || user?.role || "Ruxsat turi"}
             </Typography>
           </Box>
         </Box>
