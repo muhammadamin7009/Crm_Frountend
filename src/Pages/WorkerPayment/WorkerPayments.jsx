@@ -23,6 +23,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useAuth } from "../../Context/AuthContext";
+import { uzbekPaginationProps } from "../../utils/pagination";
 import { getUsers } from "../../api/getUsers";
 import {
   createWorkerPayment,
@@ -824,6 +825,7 @@ const WorkerPayments = () => {
         </Box>
 
         <TablePagination
+          {...uzbekPaginationProps}
           className="shrink-0 border-t border-slate-200"
           component="div"
           count={pageInfo.total}

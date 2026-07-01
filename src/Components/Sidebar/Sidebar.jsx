@@ -24,7 +24,7 @@ const menuGroups = [
       {
         label: "Hodimlar",
         path: "/users",
-        allowedRoles: ["super_admin", "admin"],
+        allowedRoles: ["super_admin", "admin", "worker"],
       },
       {
         label: "Lavozim va kelishuvlar",

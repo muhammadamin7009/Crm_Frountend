@@ -8,6 +8,10 @@ export const createUserByStaff = (data) => api.post("/users/stuff", data);
 
 export const updateUser = (id, data) => api.patch(`/users/${id}`, data);
 
+export const updateMe = (data) => api.patch("/users/me", data);
+
+export const getMe = () => api.get("/users/me");
+
 export const deleteUser = (id) => api.delete(`/users/${id}`);
 
 export const updateUserImage = (file) => {

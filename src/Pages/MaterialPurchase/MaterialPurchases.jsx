@@ -33,6 +33,7 @@ import {
   getSuppliers,
   updateSupplier,
 } from "../../api/materialPurchases";
+import { uzbekPaginationProps } from "../../utils/pagination";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const emptyPurchase = {
@@ -514,6 +515,7 @@ const MaterialPurchases = () => {
           </Table>
         </Box>
         <TablePagination
+          {...uzbekPaginationProps}
           component="div"
           count={pageInfo.total}
           page={page}

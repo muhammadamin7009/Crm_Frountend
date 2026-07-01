@@ -40,11 +40,11 @@ const AppRouter = () => {
             }
           >
             <Route path="/worker-outputs" element={<WorkerOutputs />} />
+            <Route path="/users" element={<Users />} />
           </Route>
           <Route
             element={<ProtectedRoute allowedRoles={["super_admin", "admin"]} />}
           >
-            <Route path="/users" element={<Users />} />
             <Route path="/worker-payments" element={<WorkerPayments />} />
             <Route path="/client-sales" element={<ClientSales />} />
             <Route path="/material-purchases" element={<MaterialPurchases />} />

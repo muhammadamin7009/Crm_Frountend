@@ -1,11 +1,10 @@
 import { createContext, useContext, useState } from "react";
+import { clearSession, getUser } from "../utils/auth";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(
-    JSON.parse(localStorage.getItem("user")) || null,
-  );
+  const [user, setUser] = useState(getUser);
 
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +21,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("user");
+    clearSession();
     setUser(null);
   };
 

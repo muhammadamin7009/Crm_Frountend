@@ -23,6 +23,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useAuth } from "../../Context/AuthContext";
+import { uzbekPaginationProps } from "../../utils/pagination";
 import {
   createUserByAdmin,
   createUserByStaff,
@@ -118,9 +119,8 @@ const Users = () => {
   }, [currentUser?.role]);
 
   const canCreateUser = ["super_admin", "admin"].includes(currentUser?.role);
-  const canOpenUserDetail = ["super_admin", "admin", "worker"].includes(
-    currentUser?.role,
-  );
+  const isWorkerView = currentUser?.role === "worker";
+  const canOpenUserDetail = ["super_admin", "admin"].includes(currentUser?.role);
 
   const isCurrentUser = (user) => {
     return Number(currentUser?.id) === Number(user?.id);
@@ -384,7 +384,9 @@ const Users = () => {
             Hodimlar
           </Typography>
           <Typography variant="body2" className="mt-1 text-slate-500">
-            Korxona hodimlari, rollari va tizimdagi ma'lumotlari
+            {isWorkerView
+              ? "Korxonadagi hamkasblaringiz, ularning lavozimi va bo'limi"
+              : "Korxona hodimlari, ruxsatlari va tizimdagi ma'lumotlari"}
           </Typography>
         </Box>
 
@@ -443,9 +445,9 @@ const Users = () => {
               <MenuItem value="">Barcha ruxsat turlari</MenuItem>
               <MenuItem value="super_admin">Super admin</MenuItem>
               <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="client">Mijoz</MenuItem>
-              <MenuItem value="supplier">Ta'minotchi</MenuItem>
-              <MenuItem value="customer">Xaridor</MenuItem>
+              {!isWorkerView && <MenuItem value="client">Mijoz</MenuItem>}
+              {!isWorkerView && <MenuItem value="supplier">Ta'minotchi</MenuItem>}
+              {!isWorkerView && <MenuItem value="customer">Xaridor</MenuItem>}
               <MenuItem value="worker">Ishchi</MenuItem>
             </TextField>
 
@@ -496,24 +498,31 @@ const Users = () => {
         className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white"
       >
         <Box className="min-h-0 flex-1 overflow-auto">
-          <Table sx={{ minWidth: 900 }}>
+          <Table sx={{ minWidth: isWorkerView ? 650 : 900 }}>
             <TableHead>
               <TableRow className="bg-slate-50">
                 <TableCell sx={{ fontWeight: 700 }}>Hodim</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Username</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Telefon</TableCell>
+                {isWorkerView ? (
+                  <>
+                    <TableCell sx={{ fontWeight: 700 }}>Lavozim</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Bo'lim</TableCell>
+                  </>
+                ) : (
+                  <>
+                    <TableCell sx={{ fontWeight: 700 }}>Username</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Telefon</TableCell>
+                  </>
+                )}
                 <TableCell sx={{ fontWeight: 700 }}>Ruxsat turi</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Yangilangan sana</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>
-                  Amallar
-                </TableCell>
+                {!isWorkerView && <TableCell sx={{ fontWeight: 700 }}>Yangilangan sana</TableCell>}
+                {!isWorkerView && <TableCell align="right" sx={{ fontWeight: 700 }}>Amallar</TableCell>}
               </TableRow>
             </TableHead>
 
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={isWorkerView ? 4 : 6} align="center">
                     <CircularProgress size={28} />
                   </TableCell>
                 </TableRow>
@@ -546,15 +555,22 @@ const Users = () => {
                           <Typography fontWeight={600}>
                             {user.first_name} {user.last_name}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            ID: {user.id}
-                          </Typography>
+                          {!isWorkerView && <Typography variant="body2" color="text.secondary">ID: {user.id}</Typography>}
                         </Box>
                       </Box>
                     </TableCell>
 
-                    <TableCell>{user.username}</TableCell>
-                    <TableCell>{user.phone || "-"}</TableCell>
+                    {isWorkerView ? (
+                      <>
+                        <TableCell>{user.position_name || "Lavozim biriktirilmagan"}</TableCell>
+                        <TableCell>{user.department_name || "Bo'lim biriktirilmagan"}</TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell>{user.username}</TableCell>
+                        <TableCell>{user.phone || "-"}</TableCell>
+                      </>
+                    )}
                     <TableCell>
                       <Chip
                         size="small"
@@ -566,13 +582,15 @@ const Users = () => {
                       />
                     </TableCell>
 
-                    <TableCell>
+                    {!isWorkerView && (
+                      <TableCell>
                       {user.updated_at
                         ? new Date(user.updated_at).toLocaleDateString()
                         : "-"}
-                    </TableCell>
+                      </TableCell>
+                    )}
 
-                    <TableCell align="right">
+                    {!isWorkerView && <TableCell align="right">
                       <Stack direction="row" spacing={1}>
                         {canEditUser(user) && (
                           <Button
@@ -601,12 +619,12 @@ const Users = () => {
                           </Button>
                         )}
                       </Stack>
-                    </TableCell>
+                    </TableCell>}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={isWorkerView ? 4 : 6} align="center">
                     Hodimlar topilmadi
                   </TableCell>
                 </TableRow>
@@ -616,6 +634,7 @@ const Users = () => {
         </Box>
 
         <TablePagination
+          {...uzbekPaginationProps}
           className="shrink-0 border-t border-slate-200"
           component="div"
           count={pageInfo.total}

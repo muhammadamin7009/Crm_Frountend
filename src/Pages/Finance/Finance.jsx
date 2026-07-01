@@ -403,6 +403,7 @@ const Payroll = ({ data, detail, show, open, closePeriod }) => (
             "Kunlik",
             "Bonus",
             "Avans",
+            "Boshqa ushlanma",
             "Naqd",
             "Amal",
           ]}
@@ -414,6 +415,7 @@ const Payroll = ({ data, detail, show, open, closePeriod }) => (
               money(x.daily_earnings),
               money(x.bonus),
               money(x.advance_deduction),
+              money(x.other_deduction),
               money(x.cash_amount),
               detail.payroll_period.status === "open" ? (
                 <Button size="small" onClick={() => open("line", x)}>
