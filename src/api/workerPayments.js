@@ -9,6 +9,8 @@ export const getWorkerPaymentsSummary = (params) =>
 export const getWorkerBalance = (params) =>
   api.get("/worker-payments/balance", { params });
 
+export const getWorkerDues = () => api.get("/worker-payments/due");
+
 export const getWorkerPayment = (id) => api.get(`/worker-payments/${id}`);
 
 export const createWorkerPayment = (data) => api.post("/worker-payments", data);

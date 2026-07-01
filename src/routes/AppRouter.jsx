@@ -18,6 +18,7 @@ import Employees from "../Pages/Employee/Employees";
 import Finance from "../Pages/Finance/Finance";
 import PlatformLogin from "../Pages/Platform/PlatformLogin";
 import PlatformDashboard from "../Pages/Platform/PlatformDashboard";
+import AuditLogs from "../Pages/AuditLog/AuditLogs";
 
 const AppRouter = () => {
   return (
@@ -50,6 +51,7 @@ const AppRouter = () => {
             <Route path="/material-purchases" element={<MaterialPurchases />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/finance" element={<Finance />} />
+            <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/users/:id" element={<User />} />
           </Route>
         </Route>

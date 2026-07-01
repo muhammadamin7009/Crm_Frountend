@@ -35,6 +35,14 @@ const money = (value) =>
   `${new Intl.NumberFormat("uz-UZ").format(Number(value || 0))} so'm`;
 const number = (value) =>
   new Intl.NumberFormat("uz-UZ").format(Number(value || 0));
+const getFinishedQuantity = (summary = []) => {
+  const finalDepartment = summary.find((item) => {
+    const value = `${item.group_code || ""} ${item.group_name || ""}`.toLowerCase();
+    return /upakov|upakof|qadoq|pack/.test(value);
+  });
+
+  return Number(finalDepartment?.total_quantity || 0);
+};
 const date = (value) =>
   value ? new Date(value).toLocaleDateString("uz-UZ") : "-";
 const monthRange = () => {
@@ -152,10 +160,12 @@ const AdminOverview = ({ user }) => {
         getSupplierBalance({}),
       ]);
 
+      const departmentSummary = departmentRes.data.summary || [];
+
       setData({
         users: usersRes.data.pageInfo?.total || 0,
         products: productsRes.data.pageInfo?.total || 0,
-        productionQuantity: outputsRes.data.totals?.total_quantity || 0,
+        productionQuantity: getFinishedQuantity(departmentSummary),
         productionAmount: outputsRes.data.totals?.total_amount || 0,
         salaryEarned: salaryMonthRes.data.balance?.total_earned || 0,
         salaryPaid: salaryMonthRes.data.balance?.total_paid || 0,
@@ -172,7 +182,7 @@ const AdminOverview = ({ user }) => {
       });
       setClients(clientRes.data.summary || []);
       setWorkers(workerRes.data.summary || []);
-      setDepartments(departmentRes.data.summary || []);
+      setDepartments(departmentSummary);
       setPurchases(purchasesRes.data.material_purchases || []);
     } catch (error) {
       toast.error(

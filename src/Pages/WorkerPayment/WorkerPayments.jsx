@@ -29,8 +29,8 @@ import {
   createWorkerPayment,
   deleteWorkerPayment,
   getWorkerBalance,
+  getWorkerDues,
   getWorkerPayments,
-  getWorkerPaymentsSummary,
   updateWorkerPayment,
 } from "../../api/workerPayments";
 import {
@@ -81,13 +81,20 @@ const formatDate = (value) => {
   return new Date(value).toLocaleDateString("uz-UZ");
 };
 
+const getImageUrl = (path) => {
+  if (!path) return undefined;
+  if (path.startsWith("http")) return path;
+  const baseUrl = String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+  return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+};
+
 const WorkerPayments = () => {
   const auth = useAuth();
   const currentUser = auth?.user || getLocalUser();
   const canManage = ["super_admin", "admin"].includes(currentUser?.role);
 
   const [payments, setPayments] = useState([]);
-  const [summary, setSummary] = useState([]);
+  const [workerDues, setWorkerDues] = useState([]);
   const [balance, setBalance] = useState({
     total_earned: 0,
     total_paid: 0,
@@ -133,6 +140,16 @@ const WorkerPayments = () => {
   const [balanceLoading, setBalanceLoading] = useState(false);
 
   const page = Math.floor(pageInfo.offset / pageInfo.limit);
+  const enteredPaymentTotal =
+    Number(form.amount || 0) + Number(form.advance_deduction || 0);
+  const editingPaymentTotal = selectedPayment
+    ? Number(selectedPayment.amount || 0) +
+      Number(selectedPayment.advance_deduction || 0)
+    : 0;
+  const availableWorkerBalance =
+    Number(selectedWorkerBalance.remaining || 0) + editingPaymentTotal;
+  const paymentExceedsBalance =
+    Boolean(form.worker_id) && enteredPaymentTotal > availableWorkerBalance;
 
   const fetchWorkers = useCallback(async () => {
     try {
@@ -202,21 +219,16 @@ const WorkerPayments = () => {
     setSummaryLoading(true);
 
     try {
-      const params = buildParams(0, 100);
-      delete params.offset;
-      delete params.limit;
-      params.group_by = filters.group_by;
-
-      const [summaryRes, balanceRes] = await Promise.all([
-        getWorkerPaymentsSummary(params),
+      const [balanceRes, duesRes] = await Promise.all([
         getWorkerBalance({
           worker_id: filters.worker_id || undefined,
           date_from: filters.date_from || undefined,
           date_to: filters.date_to || undefined,
         }),
+        getWorkerDues(),
       ]);
 
-      setSummary(summaryRes.data.summary || []);
+      setWorkerDues(duesRes.data.worker_dues || []);
       setBalance(
         balanceRes.data.balance || {
           total_earned: 0,
@@ -253,11 +265,7 @@ const WorkerPayments = () => {
   };
 
   const fetchSelectedWorkerBalance = useCallback(
-    async (
-      workerId,
-      periodFrom = form.period_from,
-      periodTo = form.period_to,
-    ) => {
+    async (workerId) => {
       if (!workerId) {
         setSelectedWorkerBalance({
           total_earned: 0,
@@ -273,8 +281,6 @@ const WorkerPayments = () => {
       const [{ data }, advanceRes] = await Promise.all([
         getWorkerBalance({
           worker_id: workerId,
-          date_from: periodFrom || undefined,
-          date_to: periodTo || undefined,
         }),
         getWorkerAdvanceBalance({ worker_id: workerId }),
       ]);
@@ -297,7 +303,7 @@ const WorkerPayments = () => {
         setBalanceLoading(false);
       }
     },
-    [form.period_from, form.period_to],
+    [],
   );
 
   const handleFormChange = (field) => (event) => {
@@ -310,11 +316,11 @@ const WorkerPayments = () => {
     }
 
     if (field === "period_from") {
-      fetchSelectedWorkerBalance(form.worker_id, value, form.period_to);
+      fetchSelectedWorkerBalance(form.worker_id);
     }
 
     if (field === "period_to") {
-      fetchSelectedWorkerBalance(form.worker_id, form.period_from, value);
+      fetchSelectedWorkerBalance(form.worker_id);
     }
   };
 
@@ -403,6 +409,12 @@ const WorkerPayments = () => {
       toast.error("Avans ushlanmasi qolgan avansdan oshmasin.");
       return false;
     }
+    if (paymentExceedsBalance) {
+      toast.error(
+        `Ogohlantirish: to'lov qolgan ${formatMoney(availableWorkerBalance)} ish haqidan oshmasin.`,
+      );
+      return false;
+    }
     if (
       form.period_from &&
       form.period_to &&
@@ -463,6 +475,14 @@ const WorkerPayments = () => {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const openWorkerPayment = (workerId) => {
+    setSelectedPayment(null);
+    const nextForm = { ...emptyForm, worker_id: workerId };
+    setForm(nextForm);
+    setModalOpen(true);
+    fetchSelectedWorkerBalance(workerId, "", "");
   };
 
   const handleSaveAdvance = async () => {
@@ -669,41 +689,31 @@ const WorkerPayments = () => {
         </Box>
       </Paper>
 
-      <Box className="mb-4 grid shrink-0 grid-cols-1 gap-3 md:grid-cols-4">
+      <Box className="mb-4 shrink-0 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
         {summaryLoading ? (
-          <Paper
-            elevation={0}
-            className="rounded-2xl border border-slate-200 p-4 md:col-span-4"
-          >
+          <Box className="flex min-h-28 items-center justify-center">
             <CircularProgress size={24} />
-          </Paper>
-        ) : summary.length ? (
-          summary.slice(0, 4).map((item) => (
-            <Paper
-              key={String(item.group_id)}
-              elevation={0}
-              className="rounded-2xl border border-slate-200 p-4"
-            >
-              <Typography variant="body2" className="truncate text-slate-500">
-                {paymentTypeLabels[item.group_name] || item.group_name || "-"}
-              </Typography>
-              <Typography className="mt-1 text-slate-950" fontWeight={800}>
-                {formatMoney(item.total_paid)}
-              </Typography>
-              <Typography variant="body2" className="mt-1 text-slate-500">
-                {item.payments_count} to'lov
-              </Typography>
-            </Paper>
-          ))
+          </Box>
+        ) : workerDues.length ? (
+          <Box className="flex w-max gap-3">
+            {workerDues.map((item) => (
+              <Paper key={item.worker_id} elevation={0} className="flex w-80 shrink-0 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <Avatar src={getImageUrl(item.user_image)} sx={{ bgcolor: "#7F1D1D" }}>
+                  {item.first_name?.[0]?.toUpperCase() || "I"}
+                </Avatar>
+                <Box className="min-w-0 flex-1">
+                  <Typography className="truncate" fontWeight={700}>{item.first_name} {item.last_name}</Typography>
+                  <Typography fontWeight={800} className="text-red-700">{formatMoney(item.remaining)}</Typography>
+                  <Typography variant="body2" className="text-slate-500">Berilishi kerak</Typography>
+                </Box>
+                <Button size="small" variant="outlined" onClick={() => openWorkerPayment(item.worker_id)}>Berish</Button>
+              </Paper>
+            ))}
+          </Box>
         ) : (
-          <Paper
-            elevation={0}
-            className="rounded-2xl border border-slate-200 p-4 md:col-span-4"
-          >
-            <Typography variant="body2" className="text-slate-500">
-              Summary uchun to'lov ma'lumoti topilmadi.
-            </Typography>
-          </Paper>
+          <Box className="flex min-h-24 items-center justify-center">
+            <Typography variant="body2" className="text-slate-500">Oyligi qolgan ishchilar yo'q.</Typography>
+          </Box>
         )}
       </Box>
 
@@ -872,23 +882,23 @@ const WorkerPayments = () => {
               <Box className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                 <Box className="rounded-xl border border-slate-200 bg-white p-3">
                   <Typography variant="body2" className="text-slate-500">
-                    Ishlab topgan
+                    Oldingi qoldiq
                   </Typography>
                   <Typography fontWeight={800}>
-                    {formatMoney(selectedWorkerBalance.total_earned)}
+                    {formatMoney(selectedWorkerBalance.previous_remaining)}
                   </Typography>
                 </Box>
                 <Box className="rounded-xl border border-slate-200 bg-white p-3">
                   <Typography variant="body2" className="text-slate-500">
-                    Olgan
+                    Yangi ish haqi
                   </Typography>
                   <Typography fontWeight={800}>
-                    {formatMoney(selectedWorkerBalance.total_paid)}
+                    {formatMoney(selectedWorkerBalance.new_earnings)}
                   </Typography>
                 </Box>
                 <Box className="rounded-xl border border-slate-200 bg-white p-3">
                   <Typography variant="body2" className="text-slate-500">
-                    Qolgan
+                    Berilishi kerak
                   </Typography>
                   <Typography fontWeight={800} className="text-slate-950">
                     {formatMoney(selectedWorkerBalance.remaining)}
@@ -912,6 +922,12 @@ const WorkerPayments = () => {
                 label="Naqd beriladi"
                 value={form.amount}
                 onChange={handleFormChange("amount")}
+                error={paymentExceedsBalance}
+                helperText={
+                  paymentExceedsBalance
+                    ? `Ogohlantirish: maksimum ${formatMoney(availableWorkerBalance)}`
+                    : " "
+                }
                 slotProps={{ htmlInput: { min: 0, step: 1000 } }}
               />
               <TextField
@@ -919,7 +935,12 @@ const WorkerPayments = () => {
                 label="Avansdan ushlash"
                 value={form.advance_deduction}
                 onChange={handleFormChange("advance_deduction")}
-                helperText={`Maksimum: ${formatMoney(selectedWorkerBalance.remaining_advance)}`}
+                error={paymentExceedsBalance}
+                helperText={
+                  paymentExceedsBalance
+                    ? "Kiritilgan jami summa qolgan ish haqidan oshdi"
+                    : `Maksimum: ${formatMoney(selectedWorkerBalance.remaining_advance)}`
+                }
                 slotProps={{ htmlInput: { min: 0, step: 1000 } }}
               />
               <TextField
@@ -964,7 +985,15 @@ const WorkerPayments = () => {
                 }}
               />
             </Box>
-            <Box className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+            {paymentExceedsBalance && (
+              <Box className="rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+                <Typography fontWeight={800} className="text-red-700">
+                  Ogohlantirish: kiritilgan {formatMoney(enteredPaymentTotal)} summa
+                  ishchining qolgan {formatMoney(availableWorkerBalance)} haqidan oshib ketdi.
+                </Typography>
+              </Box>
+            )}
+            <Box className={`grid grid-cols-1 gap-3 rounded-2xl border p-4 sm:grid-cols-3 ${paymentExceedsBalance ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
               <Box>
                 <Typography variant="body2" className="text-slate-500">Oylikdan yopiladi</Typography>
                 <Typography fontWeight={800}>{formatMoney(Number(form.amount || 0) + Number(form.advance_deduction || 0))}</Typography>
@@ -990,7 +1019,7 @@ const WorkerPayments = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={closeModals}>Bekor qilish</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || paymentExceedsBalance}>
             {saving ? "Saqlanmoqda..." : "Saqlash"}
           </Button>
         </DialogActions>

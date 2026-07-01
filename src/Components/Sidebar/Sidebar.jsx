@@ -67,6 +67,11 @@ const menuGroups = [
         path: "/finance",
         allowedRoles: ["super_admin", "admin"],
       },
+      {
+        label: "Amallar tarixi",
+        path: "/audit-logs",
+        allowedRoles: ["super_admin", "admin"],
+      },
     ],
   },
 ];
